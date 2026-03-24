@@ -1,0 +1,91 @@
+{
+  "name": "claw_wallet_sdk",
+  "version": "1.0.0",
+  "description": "TypeScript SDK for the Claw Wallet sandbox HTTP API and signer adapters",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./solana": {
+      "types": "./dist/solana.d.ts",
+      "import": "./dist/solana.js",
+      "default": "./dist/solana.js"
+    },
+    "./sui": {
+      "types": "./dist/sui.d.ts",
+      "import": "./dist/sui.js",
+      "default": "./dist/sui.js"
+    },
+    "./viem": {
+      "types": "./dist/viem.d.ts",
+      "import": "./dist/viem.js",
+      "default": "./dist/viem.js"
+    },
+    "./ethers": {
+      "types": "./dist/ethers.d.ts",
+      "import": "./dist/ethers.js",
+      "default": "./dist/ethers.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "codegen": "openapi-typescript ../sandbox/openapi/openapi.yaml -o src/generated/paths.ts",
+    "build": "tsc",
+    "test:fixtures": "npm run build && node test/lifecycle-fixtures.mjs",
+    "test:unit": "npm run build && node test/unit.encoding.mjs && node test/unit.signing.mjs",
+    "test:openapi-public": "node test/integration.openapi-public.mjs",
+    "test:sandbox-readonly": "npm run build && node test/integration.sandbox-readonly.mjs",
+    "test:integration": "npm run build && node test/run-integration.mjs",
+    "test:pack-consumer": "npm run build && node test/pack-consumer.mjs",
+    "test:all": "npm run test:fixtures && npm run test:unit && npm run test:openapi-public && npm run test:sandbox-readonly && npm run test:pack-consumer && npm run test:integration",
+    "prepublishOnly": "npm run build"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "claw",
+    "wallet",
+    "sandbox",
+    "openapi"
+  ],
+  "license": "ISC",
+  "dependencies": {
+    "openapi-fetch": "^0.17.0"
+  },
+  "peerDependencies": {
+    "@mysten/sui": "^2.9.1",
+    "@solana/web3.js": "^1.98.4",
+    "ethers": "^6.14.0",
+    "viem": "^2.21.0"
+  },
+  "peerDependenciesMeta": {
+    "@mysten/sui": {
+      "optional": true
+    },
+    "@solana/web3.js": {
+      "optional": true
+    },
+    "ethers": {
+      "optional": true
+    },
+    "viem": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@mysten/sui": "^2.9.1",
+    "@solana/web3.js": "^1.98.4",
+    "ethers": "^6.16.0",
+    "openapi-typescript": "^7.13.0",
+    "typescript": "^5.9.3",
+    "viem": "^2.47.6"
+  }
+}
