@@ -1,5 +1,5 @@
 /**
- * Simulates a published tarball: minimal install must resolve `claw_wallet_sdk`
+ * Simulates a published tarball: minimal install must resolve `@bitslabsec/claw_wallet_sdk`
  * without pulling viem/ethers/Solana/Sui unless the user imports those subpaths.
  *
  * Run: `npm run build && node test/pack-consumer.mjs`
@@ -45,7 +45,7 @@ try {
 
   writeFileSync(
     join(consumer, "core.mjs"),
-    `import { createClawWalletClient, ClawSandboxClient } from "claw_wallet_sdk";
+    `import { createClawWalletClient, ClawSandboxClient } from "@bitslabsec/claw_wallet_sdk";
 if (typeof createClawWalletClient !== "function") throw new Error("createClawWalletClient");
 if (typeof ClawSandboxClient !== "function") throw new Error("ClawSandboxClient");
 console.log("core-import-ok");
@@ -56,7 +56,7 @@ console.log("core-import-ok");
   run("npm install viem@^2", consumer);
   writeFileSync(
     join(consumer, "viem.mjs"),
-    `import { createClawSandboxPublicClient } from "claw_wallet_sdk/viem";
+    `import { createClawSandboxPublicClient } from "@bitslabsec/claw_wallet_sdk/viem";
 if (typeof createClawSandboxPublicClient !== "function") throw new Error("viem export");
 console.log("viem-subpath-ok");
 `,
@@ -66,7 +66,7 @@ console.log("viem-subpath-ok");
   run("npm install ethers@^6", consumer);
   writeFileSync(
     join(consumer, "ethers.mjs"),
-    `import { createClawSandboxJsonRpcProvider } from "claw_wallet_sdk/ethers";
+    `import { createClawSandboxJsonRpcProvider } from "@bitslabsec/claw_wallet_sdk/ethers";
 if (typeof createClawSandboxJsonRpcProvider !== "function") throw new Error("ethers export");
 console.log("ethers-subpath-ok");
 `,
@@ -76,7 +76,7 @@ console.log("ethers-subpath-ok");
   run("npm install @solana/web3.js@^1", consumer);
   writeFileSync(
     join(consumer, "solana.mjs"),
-    `import { ClawSolanaSigner } from "claw_wallet_sdk/solana";
+    `import { ClawSolanaSigner } from "@bitslabsec/claw_wallet_sdk/solana";
 if (typeof ClawSolanaSigner !== "function") throw new Error("solana export");
 console.log("solana-subpath-ok");
 `,
@@ -86,7 +86,7 @@ console.log("solana-subpath-ok");
   run("npm install @mysten/sui@^2", consumer);
   writeFileSync(
     join(consumer, "sui.mjs"),
-    `import { ClawSuiSigner } from "claw_wallet_sdk/sui";
+    `import { ClawSuiSigner } from "@bitslabsec/claw_wallet_sdk/sui";
 if (typeof ClawSuiSigner !== "function") throw new Error("sui export");
 console.log("sui-subpath-ok");
 `,

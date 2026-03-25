@@ -4,12 +4,7 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = join(__dirname, "..", "..");
-export const DEFAULT_ENV_CLAY = join(
-  REPO_ROOT,
-  "wallet_test",
-  "openclaw-sim-ahyznymr",
-  ".env.clay",
-);
+export const DEFAULT_ENV_CLAY = join(REPO_ROOT, "claw_wallet_sdk", ".env.integration.local");
 
 export function parseEnvClay(text) {
   const out = {};

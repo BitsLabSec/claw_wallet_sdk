@@ -1,4 +1,4 @@
-# claw_wallet_sdk
+# @bitslabsec/claw_wallet_sdk
 
 TypeScript SDK for the Claw Wallet sandbox.
 
@@ -10,19 +10,19 @@ This package provides:
 ## Install
 
 ```bash
-npm install claw_wallet_sdk
+npm install @bitslabsec/claw_wallet_sdk
 ```
 
 Install optional peers **only for the adapters you import**:
 
 ```bash
-npm install ethers          # for `claw_wallet_sdk/ethers`
-npm install viem            # for `claw_wallet_sdk/viem`
-npm install @solana/web3.js # for `claw_wallet_sdk/solana`
-npm install @mysten/sui     # for `claw_wallet_sdk/sui`
+npm install ethers          # for `@bitslabsec/claw_wallet_sdk/ethers`
+npm install viem            # for `@bitslabsec/claw_wallet_sdk/viem`
+npm install @solana/web3.js # for `@bitslabsec/claw_wallet_sdk/solana`
+npm install @mysten/sui     # for `@bitslabsec/claw_wallet_sdk/sui`
 ```
 
-The main entry (`claw_wallet_sdk`) only loads `openapi-fetch`; it does **not** pull viem/ethers/Solana/Sui at runtime.
+The main entry (`@bitslabsec/claw_wallet_sdk`) only loads `openapi-fetch`; it does **not** pull viem/ethers/Solana/Sui at runtime.
 
 ## Import boundaries
 
@@ -33,16 +33,16 @@ import {
   createClawWalletClient,
   ClawSandboxClient,
   buildPersonalSignBody,
-} from "claw_wallet_sdk";
+} from "@bitslabsec/claw_wallet_sdk";
 ```
 
 Use subpath imports for chain adapters:
 
 ```ts
-import { ClawEthersSigner } from "claw_wallet_sdk/ethers";
-import { createClawAccountFromSandbox } from "claw_wallet_sdk/viem";
-import { ClawSolanaSigner } from "claw_wallet_sdk/solana";
-import { ClawSuiSigner } from "claw_wallet_sdk/sui";
+import { ClawEthersSigner } from "@bitslabsec/claw_wallet_sdk/ethers";
+import { createClawAccountFromSandbox } from "@bitslabsec/claw_wallet_sdk/viem";
+import { ClawSolanaSigner } from "@bitslabsec/claw_wallet_sdk/solana";
+import { ClawSuiSigner } from "@bitslabsec/claw_wallet_sdk/sui";
 ```
 
 This is an intentional breaking change from earlier in-repo revisions that re-exported adapters from the root entry.
@@ -50,7 +50,7 @@ This is an intentional breaking change from earlier in-repo revisions that re-ex
 ## Core client
 
 ```ts
-import { createClawWalletClient } from "claw_wallet_sdk";
+import { createClawWalletClient } from "@bitslabsec/claw_wallet_sdk";
 
 const client = createClawWalletClient({
   baseUrl: process.env.CLAY_SANDBOX_URL!,
@@ -63,7 +63,7 @@ const { data } = await client.GET("/api/v1/wallet/status", {});
 ## Sandbox helper client
 
 ```ts
-import { ClawSandboxClient } from "claw_wallet_sdk";
+import { ClawSandboxClient } from "@bitslabsec/claw_wallet_sdk";
 
 const sandbox = new ClawSandboxClient({
   uid: process.env.CLAY_UID!,
@@ -96,7 +96,7 @@ High-frequency helper methods currently include:
 ## Wallet lifecycle
 
 ```ts
-import { ClawSandboxClient } from "claw_wallet_sdk";
+import { ClawSandboxClient } from "@bitslabsec/claw_wallet_sdk";
 
 const sandbox = new ClawSandboxClient({
   uid: process.env.CLAY_UID!,
@@ -117,7 +117,7 @@ await sandbox.reactivateWallet();
 
 ```ts
 import { JsonRpcProvider } from "ethers";
-import { ClawEthersSigner } from "claw_wallet_sdk/ethers";
+import { ClawEthersSigner } from "@bitslabsec/claw_wallet_sdk/ethers";
 
 const signer = new ClawEthersSigner(
   {
@@ -132,7 +132,7 @@ const signer = new ClawEthersSigner(
 ## Viem account
 
 ```ts
-import { createClawAccountFromSandbox } from "claw_wallet_sdk/viem";
+import { createClawAccountFromSandbox } from "@bitslabsec/claw_wallet_sdk/viem";
 
 const account = await createClawAccountFromSandbox({
   uid: process.env.CLAY_UID!,
@@ -144,7 +144,7 @@ const account = await createClawAccountFromSandbox({
 ## Solana signer
 
 ```ts
-import { ClawSolanaSigner } from "claw_wallet_sdk/solana";
+import { ClawSolanaSigner } from "@bitslabsec/claw_wallet_sdk/solana";
 
 const signer = await ClawSolanaSigner.fromSandbox({
   uid: process.env.CLAY_UID!,
@@ -158,7 +158,7 @@ const signed = await signer.signMessage(new Uint8Array([1, 2, 3]));
 ## Sui signer
 
 ```ts
-import { ClawSuiSigner } from "claw_wallet_sdk/sui";
+import { ClawSuiSigner } from "@bitslabsec/claw_wallet_sdk/sui";
 
 const signer = await ClawSuiSigner.fromSandbox({
   uid: process.env.CLAY_UID!,
@@ -192,11 +192,11 @@ If existing code imports adapters from the root entry, change them to subpath im
 
 ```ts
 // before
-import { ClawEthersSigner, createClawAccountFromSandbox } from "claw_wallet_sdk";
+import { ClawEthersSigner, createClawAccountFromSandbox } from "@bitslabsec/claw_wallet_sdk";
 
 // after
-import { ClawEthersSigner } from "claw_wallet_sdk/ethers";
-import { createClawAccountFromSandbox } from "claw_wallet_sdk/viem";
+import { ClawEthersSigner } from "@bitslabsec/claw_wallet_sdk/ethers";
+import { createClawAccountFromSandbox } from "@bitslabsec/claw_wallet_sdk/viem";
 ```
 
 ## Notes

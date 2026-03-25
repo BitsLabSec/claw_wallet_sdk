@@ -20,8 +20,13 @@ const client = createClawWalletClient({
 const { data, response } = await client.GET("/api/v1/wallet/status", {});
 assert.equal(response.status, 200, "wallet/status required");
 
-const uid = String(process.env.CLAY_UID?.trim() || data?.uid || "").trim();
-assert.ok(uid, "set CLAY_UID or bind wallet so status.uid exists");
+const statusUid = String(data?.uid ?? "").trim();
+assert.ok(statusUid, "wallet/status did not include uid");
+const envUid = String(process.env.CLAY_UID?.trim() || "").trim();
+if (envUid && envUid !== statusUid) {
+  throw new Error(`CLAY_UID mismatch: env=${envUid} status=${statusUid}`);
+}
+const uid = statusUid;
 
 const sandbox = new ClawSandboxClient({
   uid,

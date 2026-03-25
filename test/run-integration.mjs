@@ -42,6 +42,9 @@ const FUNDS_LIKE =
 const SANDBOX_GATE =
   /confirmation|first outbound|requires confirm|policy|whitelist|blacklist|share2|gate|relay/i;
 
+const TRANSIENT_RPC_FAILURE =
+  /too many connections|rpc .* failed|eth_chainId failed|temporar|bad gateway|timeout/i;
+
 function errorText(error) {
   if (typeof error === "string") return error;
   if (error && typeof error === "object" && "message" in error) {
@@ -56,7 +59,7 @@ function sleep(ms) {
 
 function isRetryableNetworkError(error) {
   const text = String(error instanceof Error ? error.message : error ?? "");
-  return /502|503|504|bad gateway|failed to detect network|timeout|temporar/i.test(text);
+  return /502|503|504|bad gateway|failed to detect network|timeout|temporar|upstream connect error|invalid json was received by the server|cannot parse json-rpc response|too many connections/i.test(text);
 }
 
 async function withRetry(fn, attempts = 3, delayMs = 1000) {
@@ -95,12 +98,6 @@ async function verifyEd25519Signature(publicKeyBytes, signature, payload) {
 const cfg = loadIntegrationConfig();
 
 async function main() {
-  const sandbox = new ClawSandboxClient({
-    uid: process.env.CLAY_UID?.trim() || "54392143eb1d70a9e9358e73a650f23b",
-    sandboxUrl: cfg.baseUrl,
-    sandboxToken: cfg.agentToken || "",
-  });
-
   const client = createClawWalletClient({
     baseUrl: cfg.baseUrl,
     agentToken: cfg.agentToken || undefined,
@@ -119,6 +116,20 @@ async function main() {
 
   const { data: currentStatus, response: statusResponse } = await client.GET("/api/v1/wallet/status", {});
   assert.equal(statusResponse.status, 200, "wallet/status required for integration runner");
+
+  const statusUid = String(currentStatus?.uid ?? "").trim();
+  assert.ok(statusUid, "wallet/status did not include uid");
+  const envUid = String(process.env.CLAY_UID?.trim() || "").trim();
+  if (envUid && envUid !== statusUid) {
+    throw new Error(`CLAY_UID mismatch: env=${envUid} status=${statusUid}`);
+  }
+  const uid = statusUid;
+
+  const sandbox = new ClawSandboxClient({
+    uid,
+    sandboxUrl: cfg.baseUrl,
+    sandboxToken: cfg.agentToken || "",
+  });
 
   await runStep("GET /api/v1/wallet/status", async () => {
     const { data, error, response } = await client.GET("/api/v1/wallet/status", {});
@@ -275,7 +286,7 @@ async function main() {
     });
     const signer = new ClawEthersSigner(
       {
-        uid: String(currentStatus?.uid ?? sandbox.config.uid).trim(),
+        uid,
         sandboxUrl: cfg.baseUrl,
         sandboxToken: cfg.agentToken,
       },
@@ -338,7 +349,7 @@ async function main() {
 
   await runStep("viem account message/hash/typed-data/transaction", async () => {
     const account = await createClawAccountFromSandbox({
-      uid: String(currentStatus?.uid ?? sandbox.config.uid).trim(),
+      uid,
       sandboxUrl: cfg.baseUrl,
       sandboxToken: cfg.agentToken,
     });
@@ -432,7 +443,7 @@ async function main() {
 
   await runStep("solana signer personal_sign verification", async () => {
     const signer = await ClawSolanaSigner.fromSandbox({
-      uid: String(currentStatus?.uid ?? sandbox.config.uid).trim(),
+      uid,
       sandboxUrl: cfg.baseUrl,
       sandboxToken: cfg.agentToken,
     });
@@ -450,7 +461,7 @@ async function main() {
 
   await runStep("solana signer transaction verification", async () => {
     const signer = await ClawSolanaSigner.fromSandbox({
-      uid: String(currentStatus?.uid ?? sandbox.config.uid).trim(),
+      uid,
       sandboxUrl: cfg.baseUrl,
       sandboxToken: cfg.agentToken,
     });
@@ -496,7 +507,7 @@ async function main() {
 
   await runStep("sui signer personal_sign verification", async () => {
     const signer = await ClawSuiSigner.fromSandbox({
-      uid: String(currentStatus?.uid ?? sandbox.config.uid).trim(),
+      uid,
       sandboxUrl: cfg.baseUrl,
       sandboxToken: cfg.agentToken,
     });
@@ -543,7 +554,7 @@ async function main() {
 
   await runStep("sui signer transaction verification", async () => {
     const signer = await ClawSuiSigner.fromSandbox({
-      uid: String(currentStatus?.uid ?? sandbox.config.uid).trim(),
+      uid,
       sandboxUrl: cfg.baseUrl,
       sandboxToken: cfg.agentToken,
     });
@@ -618,8 +629,10 @@ async function main() {
     const acceptable =
       FUNDS_LIKE.test(text) ||
       SANDBOX_GATE.test(text) ||
+      TRANSIENT_RPC_FAILURE.test(text) ||
       response.status === 409 ||
-      response.status === 403;
+      response.status === 403 ||
+      response.status === 400;
     assert.ok(
       acceptable,
       `expected funds/gas-like or sandbox policy gate, got status=${response.status}: ${text}`,

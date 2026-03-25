@@ -1,10 +1,24 @@
 {
-  "name": "claw_wallet_sdk",
+  "name": "@bitslabsec/claw_wallet_sdk",
   "version": "1.0.0",
   "description": "TypeScript SDK for the Claw Wallet sandbox HTTP API and signer adapters",
+  "keywords": [
+    "claw",
+    "wallet",
+    "sandbox",
+    "openapi"
+  ],
+  "homepage": "https://www.clawwallet.cc/",
+  "bugs": {
+    "url": "https://github.com/BitsLabSec/claw_wallet_sdk/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/BitsLabSec/claw_wallet_sdk.git"
+  },
+  "license": "ISC",
+  "author": "clawwallet",
   "type": "module",
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -32,6 +46,12 @@
       "default": "./dist/ethers.js"
     }
   },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "directories": {
+    "example": "examples",
+    "test": "test"
+  },
   "files": [
     "dist"
   ],
@@ -45,20 +65,18 @@
     "test:integration": "npm run build && node test/run-integration.mjs",
     "test:pack-consumer": "npm run build && node test/pack-consumer.mjs",
     "test:all": "npm run test:fixtures && npm run test:unit && npm run test:openapi-public && npm run test:sandbox-readonly && npm run test:pack-consumer && npm run test:integration",
-    "prepublishOnly": "npm run build"
+    "prepublishOnly": "npm run build && npm run test:unit && npm run test:pack-consumer"
   },
-  "engines": {
-    "node": ">=18"
-  },
-  "keywords": [
-    "claw",
-    "wallet",
-    "sandbox",
-    "openapi"
-  ],
-  "license": "ISC",
   "dependencies": {
     "openapi-fetch": "^0.17.0"
+  },
+  "devDependencies": {
+    "@mysten/sui": "^2.9.1",
+    "@solana/web3.js": "^1.98.4",
+    "ethers": "^6.16.0",
+    "openapi-typescript": "^7.13.0",
+    "typescript": "^5.9.3",
+    "viem": "^2.47.6"
   },
   "peerDependencies": {
     "@mysten/sui": "^2.9.1",
@@ -80,12 +98,10 @@
       "optional": true
     }
   },
-  "devDependencies": {
-    "@mysten/sui": "^2.9.1",
-    "@solana/web3.js": "^1.98.4",
-    "ethers": "^6.16.0",
-    "openapi-typescript": "^7.13.0",
-    "typescript": "^5.9.3",
-    "viem": "^2.47.6"
+  "engines": {
+    "node": ">=18"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }
