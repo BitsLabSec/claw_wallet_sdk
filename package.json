@@ -1,6 +1,6 @@
 {
   "name": "@bitslabsec/claw_wallet_sdk",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "TypeScript SDK for the Claw Wallet sandbox HTTP API and signer adapters",
   "keywords": [
     "claw",
