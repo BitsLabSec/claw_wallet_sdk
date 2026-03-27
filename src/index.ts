@@ -31,6 +31,8 @@ export {
   type ClawStatusMessage,
   type ClawTransferRequest,
   type ClawTransferResult,
+  type ClawWalletBindRequest,
+  type ClawWalletBindResult,
   type ClawWalletHistory,
   type ClawWalletHistoryEntry,
   type ClawWalletInitRequest,

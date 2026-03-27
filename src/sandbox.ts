@@ -7,6 +7,7 @@ export type ClawWalletStatus = components["schemas"]["WalletStatusResponse"];
 export type ClawWalletInitRequest = components["schemas"]["WalletInitRequest"];
 export type ClawWalletInitResponse = components["schemas"]["WalletInitResponse"];
 export type ClawWalletUnlockRequest = components["schemas"]["WalletUnlockRequest"];
+export type ClawWalletBindRequest = components["schemas"]["WalletBindRequest"];
 export type ClawPolicy = components["schemas"]["Policy"];
 export type ClawBroadcastRequest = components["schemas"]["BroadcastRequest"];
 export type ClawBroadcastResponse = components["schemas"]["BroadcastResponse"];
@@ -16,6 +17,7 @@ export type ClawWalletHistory = ClawWalletHistoryEntry[];
 export type ClawStatusMessage = components["schemas"]["StatusMessage"];
 export type ClawAssetSnapshot = Record<string, unknown>;
 export type ClawTransferResult = Record<string, unknown>;
+export type ClawWalletBindResult = Record<string, unknown>;
 
 export type ClawSignerConfig = {
   uid: string;
@@ -139,6 +141,16 @@ export class ClawSandboxClient {
       throw new Error(`Claw Sandbox status did not include a ${chain} address`);
     }
     return address;
+  }
+
+  async bindWallet(request: ClawWalletBindRequest): Promise<ClawWalletBindResult> {
+    const { data, error, response } = await this.client.POST("/api/v1/wallet/bind", {
+      body: request,
+    });
+    if (!response.ok || !data) {
+      throw new Error(`Failed to bind wallet (${response.status}): ${errorText(error, response)}`);
+    }
+    return data;
   }
 
   async broadcast(request: ClawBroadcastRequest): Promise<ClawBroadcastResponse> {

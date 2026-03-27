@@ -28,7 +28,7 @@ const signer = new ClawEthersSigner(
   },
   provider,
 );
-//测试数据
+// Test data
 const from = await signer.getAddress();
 const network = await provider.getNetwork();
 const nonce = await provider.getTransactionCount(from, "pending");
@@ -51,14 +51,14 @@ console.log("value(wei)", payloadValue.toString());
 console.log("chainId", network.chainId.toString());
 console.log("nonce", nonce);
 console.log("gasPrice", gasPrice.toString());
-// 进行签名校验
+// Verify the signature
 const signedRawTx = await signer.signTransaction(txRequest);
 const parsed = Transaction.from(signedRawTx);
 const recoveredFrom = parsed.from ?? "";
 const verified =
   recoveredFrom.toLowerCase() === from.toLowerCase() &&
   parsed.to?.toLowerCase() === payloadTo.toLowerCase();
-// 确保签名无问题
+// Ensure the signature is valid
 if (!verified) {
   throw new Error(
     `signature check failed: recoveredFrom=${recoveredFrom}, expectedFrom=${from}, parsedTo=${parsed.to}, expectedTo=${payloadTo}`,
@@ -67,7 +67,7 @@ if (!verified) {
 
 console.log("signature check passed");
 console.log("signed tx bytes", signedRawTx.length / 2 - 1);
-// 发起交易
+// Broadcast the transaction
 const pending = await provider.broadcastTransaction(signedRawTx);
 console.log("broadcasted tx hash", pending.hash);
 

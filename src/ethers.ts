@@ -6,6 +6,7 @@ import {
   Signature,
   Transaction,
   TransactionRequest,
+  TransactionResponse,
   TypedDataDomain,
   TypedDataField,
   hexlify,
@@ -152,6 +153,8 @@ export class ClawEthersSigner extends AbstractSigner {
     const tx = await resolveProperties(transaction);
     const normalizedTo = tx.to ? await resolveAddress(tx.to, this.provider) : null;
     const normalizedFrom = tx.from ? await resolveAddress(tx.from, this.provider) : undefined;
+    console.log("normalizedFrom", normalizedFrom);
+    console.log("normalizedTo", normalizedTo);
     const unsigned = Transaction.from({
       ...tx,
       to: normalizedTo,
@@ -174,5 +177,13 @@ export class ClawEthersSigner extends AbstractSigner {
 
     unsigned.signature = Signature.from(res.signature_hex);
     return unsigned.serialized;
+  }
+
+  async sendTransaction(transaction: TransactionRequest): Promise<TransactionResponse> {
+    if (!this.provider) {
+      throw new Error("ClawEthersSigner requires a provider to send transactions");
+    }
+    const signedRawTx = await this.signTransaction(transaction);
+    return await this.provider.broadcastTransaction(signedRawTx);
   }
 }
