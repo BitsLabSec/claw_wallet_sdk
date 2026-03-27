@@ -2,29 +2,29 @@
 
 ## 1.0.0
 
-Initial public release of `@bitslabsec/claw_wallet_sdk`.
+Initial public release of `@claw_wallet_sdk/claw_wallet`.
 
 ### Added
 
 - Typed HTTP client for the Claw Wallet sandbox OpenAPI.
 - `ClawSandboxClient` helper for common wallet and signing flows.
 - EVM support:
-  - `@bitslabsec/claw_wallet_sdk/ethers`
-  - `@bitslabsec/claw_wallet_sdk/viem`
+  - `@claw_wallet_sdk/claw_wallet/ethers`
+  - `@claw_wallet_sdk/claw_wallet/viem`
 - Solana support:
-  - `@bitslabsec/claw_wallet_sdk/solana`
+  - `@claw_wallet_sdk/claw_wallet/solana`
 - Sui support:
-  - `@bitslabsec/claw_wallet_sdk/sui`
+  - `@claw_wallet_sdk/claw_wallet/sui`
 - Utility helpers for payload encoding and `personal_sign` request construction.
 
 ### Packaging
 
-- Core SDK entry is published from `@bitslabsec/claw_wallet_sdk`.
+- Core SDK entry is published from `@claw_wallet_sdk/claw_wallet`.
 - Optional chain adapters are published as subpath imports:
-  - `@bitslabsec/claw_wallet_sdk/ethers`
-  - `@bitslabsec/claw_wallet_sdk/viem`
-  - `@bitslabsec/claw_wallet_sdk/solana`
-  - `@bitslabsec/claw_wallet_sdk/sui`
+  - `@claw_wallet_sdk/claw_wallet/ethers`
+  - `@claw_wallet_sdk/claw_wallet/viem`
+  - `@claw_wallet_sdk/claw_wallet/solana`
+  - `@claw_wallet_sdk/claw_wallet/sui`
 
 ### Notes
 
