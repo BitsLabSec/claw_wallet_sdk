@@ -30,6 +30,7 @@ export function loadIntegrationConfig() {
   const fromEnv = {
     baseUrl: process.env.CLAY_SANDBOX_URL?.trim(),
     agentToken: process.env.CLAY_AGENT_TOKEN?.trim(),
+    relayUrl: process.env.CLAY_RELAY_URL?.trim(),
   };
 
   let fileEnv = {};
@@ -53,6 +54,7 @@ export function loadIntegrationConfig() {
     fileEnv.CLAY_AGENT_TOKEN ||
     fileEnv.AGENT_TOKEN ||
     "";
+  const relayUrl = (fromEnv.relayUrl || fileEnv.CLAY_RELAY_URL || "").replace(/\/+$/, "");
 
-  return { baseUrl, agentToken, envPath, hadEnvFile: existsSync(envPath) };
+  return { baseUrl, agentToken, relayUrl, envPath, hadEnvFile: existsSync(envPath) };
 }

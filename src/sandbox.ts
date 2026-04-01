@@ -19,6 +19,20 @@ export type ClawAssetSnapshot = Record<string, unknown>;
 export type ClawTransferResult = Record<string, unknown>;
 export type ClawWalletBindResult = Record<string, unknown>;
 
+const EVM_ADDRESS_FALLBACK_CHAINS = new Set([
+  "ethereum",
+  "0g",
+  "base",
+  "bsc",
+  "arbitrum",
+  "optimism",
+  "polygon",
+  "avalanche",
+  "linea",
+  "zksync",
+  "monad",
+]);
+
 export type ClawSignerConfig = {
   uid: string;
   sandboxUrl: string;
@@ -136,7 +150,12 @@ export class ClawSandboxClient {
 
   async getRequiredAddress(chain: string): Promise<string> {
     const status = await this.getStatus();
-    const address = status.addresses?.[chain] ?? (chain === "ethereum" ? status.address : undefined);
+    const normalized = chain.trim().toLowerCase();
+    const address =
+      status.addresses?.[normalized] ??
+      (EVM_ADDRESS_FALLBACK_CHAINS.has(normalized)
+        ? status.addresses?.ethereum ?? status.address
+        : undefined);
     if (!address) {
       throw new Error(`Claw Sandbox status did not include a ${chain} address`);
     }
