@@ -37,6 +37,7 @@ export type ClawSignerConfig = {
   uid: string;
   sandboxUrl: string;
   sandboxToken: string;
+  chain?: string;
   fetch?: ClawWalletClientOptions["fetch"];
 };
 
@@ -102,6 +103,26 @@ export class ClawSandboxClient {
       throw new Error(`Failed to trigger wallet refresh (${response.status}): ${errorText(error, response)}`);
     }
     return data;
+  }
+
+  async refreshAndGetAssets(): Promise<ClawAssetSnapshot> {
+    const { data, error, response } = await this.client.GET("/api/v1/wallet/refreshAndAssets", {});
+    if (!response.ok || !data) {
+      throw new Error(`Failed to refresh and get assets (${response.status}): ${errorText(error, response)}`);
+    }
+    return data;
+  }
+
+  async refreshChain(chain: string): Promise<Record<string, unknown>> {
+    const { data, error, response } = await this.client.POST("/api/v1/wallet/refresh/chain", {
+      body: {
+        chain,
+      },
+    });
+    if (!response.ok || !data) {
+      throw new Error(`Failed to refresh chain (${response.status}): ${errorText(error, response)}`);
+    }
+    return data as Record<string, unknown>;
   }
 
   async unlockWallet(request: ClawWalletUnlockRequest): Promise<ClawWalletStatus> {

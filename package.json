@@ -1,6 +1,6 @@
 {
   "name": "@claw_wallet_sdk/claw_wallet",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "description": "TypeScript SDK for the Claw Wallet sandbox HTTP API and signer adapters",
   "keywords": [
     "claw",
@@ -56,10 +56,10 @@
     "dist"
   ],
   "scripts": {
-    "codegen": "openapi-typescript ../sandbox/openapi/openapi.yaml -o src/generated/paths.ts",
+    "codegen": "openapi-typescript ../sandbox/handlers/docs/openapi/openapi.yaml -o src/generated/paths.ts",
     "build": "tsc",
     "test:fixtures": "npm run build && node test/lifecycle-fixtures.mjs",
-    "test:unit": "npm run build && node test/unit.encoding.mjs && node test/unit.signing.mjs",
+    "test:unit": "npm run build && node test/unit.encoding.mjs && node test/unit.signing.mjs && node test/unit.evm-adapters.mjs",
     "test:openapi-public": "node test/integration.openapi-public.mjs",
     "test:sandbox-readonly": "npm run build && node test/integration.sandbox-readonly.mjs",
     "test:integration": "npm run build && node test/run-integration.mjs",

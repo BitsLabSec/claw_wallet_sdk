@@ -15,6 +15,10 @@ import {
 import { type LocalAccount, toAccount } from "viem/accounts";
 import { mainnet } from "viem/chains";
 
+import {
+  clawChainToChainId,
+  resolveClawEvmChain,
+} from "./evm-chain.js";
 import { ClawSandboxClient, type ClawSignerConfig } from "./sandbox.js";
 
 function normalizeBaseUrl(url: string): string {
@@ -104,7 +108,7 @@ export function createClawAccount(config: ClawSignerConfig, address: Address): L
     address,
     async sign({ hash }: { hash: Hex }) {
       const res = await client.sign({
-        chain: "ethereum",
+        chain: resolveClawEvmChain(config.chain),
         sign_mode: "raw_hash",
         tx_payload_hex: hash,
       });
@@ -112,22 +116,34 @@ export function createClawAccount(config: ClawSignerConfig, address: Address): L
     },
     async signMessage({ message }: { message: ViemMessage }) {
       const res = await client.sign({
-        chain: "ethereum",
+        chain: resolveClawEvmChain(config.chain),
         sign_mode: "personal_sign",
         tx_payload_hex: toMessageHex(message),
       });
       return res.signature_hex as Hex;
     },
     async signTransaction(transaction: TransactionSerializable) {
-      const unsignedTx = serializeTransaction(transaction);
+      const configuredChainId = clawChainToChainId(config.chain);
+      const chainId = transaction.chainId != null
+        ? Number(transaction.chainId)
+        : configuredChainId != null
+          ? Number(configuredChainId)
+          : Number.NaN;
+      if (!Number.isFinite(chainId) || chainId <= 0) {
+        throw new Error(
+          "Claw viem account requires transaction.chainId or a known config.chain before signing",
+        );
+      }
+      const txWithChainId = { ...transaction, chainId } as TransactionSerializable;
+      const unsignedTx = serializeTransaction(txWithChainId);
       const res = await client.sign({
-        chain: "ethereum",
+        chain: resolveClawEvmChain(config.chain, chainId),
         sign_mode: "transaction",
         confirmed_by_user: true,
         tx_payload_hex: unsignedTx,
-        to: transaction.to ?? undefined,
-        amount_wei: transaction.value ? transaction.value.toString() : "0",
-        data: transaction.data ?? "0x",
+        to: txWithChainId.to ?? undefined,
+        amount_wei: txWithChainId.value ? txWithChainId.value.toString() : "0",
+        data: txWithChainId.data ?? "0x",
       });
 
       const signature = res.signature_hex;
@@ -138,7 +154,7 @@ export function createClawAccount(config: ClawSignerConfig, address: Address): L
       const s = `0x${signature.slice(66, 130)}` as Hex;
       const yParity = Number.parseInt(signature.slice(130, 132), 16) as 0 | 1;
 
-      return serializeTransaction(transaction, { r, s, yParity });
+      return serializeTransaction(txWithChainId, { r, s, yParity });
     },
     async signTypedData(typedData: Record<string, unknown>) {
       const normalized = typedData as {
@@ -146,7 +162,7 @@ export function createClawAccount(config: ClawSignerConfig, address: Address): L
         types?: TypedData;
       };
       const res = await client.sign({
-        chain: "ethereum",
+        chain: resolveClawEvmChain(config.chain),
         sign_mode: "typed_data",
         typed_data: {
           ...typedData,

@@ -16,6 +16,10 @@ import {
   verifyMessage,
 } from "ethers";
 
+import {
+  clawChainToChainId,
+  resolveClawEvmChain,
+} from "./evm-chain.js";
 import { ClawSandboxClient, type ClawSignerConfig } from "./sandbox.js";
 
 function normalizeBaseUrl(url: string): string {
@@ -105,9 +109,14 @@ export class ClawEthersSigner extends AbstractSigner {
     }
 
     const status = await this.client.getStatus();
-    this.address = status.addresses?.ethereum ?? status.address ?? "";
+    const preferredChain = resolveClawEvmChain(this.config.chain);
+    this.address =
+      status.addresses?.[preferredChain] ??
+      status.addresses?.ethereum ??
+      status.address ??
+      "";
     if (!this.address) {
-      throw new Error("Claw Sandbox status did not include an ethereum address");
+      throw new Error(`Claw Sandbox status did not include a ${preferredChain} address`);
     }
     return this.address;
   }
@@ -119,7 +128,7 @@ export class ClawEthersSigner extends AbstractSigner {
   async signMessage(message: string | Uint8Array): Promise<string> {
     const payloadHex = typeof message === "string" ? hexlify(toUtf8Bytes(message)) : hexlify(message);
     const res = await this.client.sign({
-      chain: "ethereum",
+      chain: resolveClawEvmChain(this.config.chain),
       sign_mode: "personal_sign",
       tx_payload_hex: payloadHex,
     });
@@ -137,7 +146,7 @@ export class ClawEthersSigner extends AbstractSigner {
     }
 
     const res = await this.client.sign({
-      chain: "ethereum",
+      chain: resolveClawEvmChain(this.config.chain),
       sign_mode: "typed_data",
       typed_data: {
         domain,
@@ -149,20 +158,50 @@ export class ClawEthersSigner extends AbstractSigner {
     return res.signature_hex ?? "";
   }
 
+  private async resolveTransactionChainId(transaction: TransactionRequest): Promise<bigint> {
+    if (transaction.chainId != null) {
+      return BigInt(transaction.chainId);
+    }
+
+    const configuredChainId = clawChainToChainId(this.config.chain);
+    if (configuredChainId != null) {
+      return configuredChainId;
+    }
+
+    if (this.provider) {
+      const network = await this.provider.getNetwork();
+      if (network?.chainId != null) {
+        return BigInt(network.chainId);
+      }
+    }
+
+    throw new Error(
+      "ClawEthersSigner requires transaction.chainId, a known config.chain, or a connected provider network",
+    );
+  }
+
   async signTransaction(transaction: TransactionRequest): Promise<string> {
     const tx = await resolveProperties(transaction);
+    const chainId = await this.resolveTransactionChainId(tx);
     const normalizedTo = tx.to ? await resolveAddress(tx.to, this.provider) : null;
     const normalizedFrom = tx.from ? await resolveAddress(tx.from, this.provider) : undefined;
-    console.log("normalizedFrom", normalizedFrom);
-    console.log("normalizedTo", normalizedTo);
+    if (normalizedFrom) {
+      const signerAddress = await this.getAddress();
+      if (signerAddress.toLowerCase() !== normalizedFrom.toLowerCase()) {
+        throw new Error(`transaction from mismatch: ${normalizedFrom}`);
+      }
+    }
+
+    const txForSigning = { ...tx } as Record<string, unknown>;
+    delete txForSigning.from;
     const unsigned = Transaction.from({
-      ...tx,
+      ...txForSigning,
+      chainId,
       to: normalizedTo,
-      from: normalizedFrom,
     } as any);
 
     const res = await this.client.sign({
-      chain: "ethereum",
+      chain: resolveClawEvmChain(this.config.chain, chainId),
       sign_mode: "transaction",
       confirmed_by_user: true,
       to: normalizedTo ?? undefined,
@@ -183,7 +222,9 @@ export class ClawEthersSigner extends AbstractSigner {
     if (!this.provider) {
       throw new Error("ClawEthersSigner requires a provider to send transactions");
     }
-    const signedRawTx = await this.signTransaction(transaction);
+    const populated = await this.populateTransaction(transaction);
+    delete populated.from;
+    const signedRawTx = await this.signTransaction(populated);
     return await this.provider.broadcastTransaction(signedRawTx);
   }
 }

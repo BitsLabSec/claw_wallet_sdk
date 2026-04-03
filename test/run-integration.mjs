@@ -217,6 +217,13 @@ function evmExpectedAddressForChain(status, chainKey) {
   ).trim().toLowerCase();
 }
 
+function assertMonadAddressPresent(status) {
+  const ethereum = String(status?.addresses?.ethereum ?? status?.address ?? "").trim().toLowerCase();
+  const monad = String(status?.addresses?.monad ?? "").trim().toLowerCase();
+  assert.ok(ethereum.startsWith("0x"), "wallet/status missing ethereum address");
+  assert.equal(monad, ethereum, "wallet/status should expose monad address matching ethereum");
+}
+
 async function assertEvmTransactionSignForChain(client, sandbox, status, uid, chainKey) {
   const expectedAddress = evmExpectedAddressForChain(status, chainKey);
   assert.ok(expectedAddress.startsWith("0x"), `${chainKey} address missing in wallet status`);
@@ -329,6 +336,47 @@ async function assertTransferSmokeForChain(client, status, uid, chainKey) {
     acceptable,
     `expected ${chainKey} transfer failure to be funds/gate/refresh/provider-like, got status=${response.status}: ${text}`,
   );
+}
+
+async function assertProviderInferredEvmTransactionSignForChain(status, uid, chainKey) {
+  const provider = createClawSandboxJsonRpcProvider({
+    baseUrl: cfg.baseUrl,
+    agentToken: cfg.agentToken,
+    chainKey,
+  });
+  const signer = new ClawEthersSigner(
+    {
+      uid,
+      sandboxUrl: cfg.baseUrl,
+      sandboxToken: cfg.agentToken,
+    },
+    provider,
+  );
+
+  const expectedAddress = evmExpectedAddressForChain(status, chainKey);
+  assert.ok(expectedAddress.startsWith("0x"), `${chainKey} address missing`);
+
+  const network = await withRetry(() => provider.getNetwork());
+  assert.ok(network.chainId > 0n, `${chainKey} provider returned invalid chainId`);
+
+  const nonce = await withRetry(() => provider.getTransactionCount(expectedAddress, "pending"));
+  const feeData = await withRetry(() => provider.getFeeData());
+  const gasPrice = feeData.gasPrice ?? 50_000_000n;
+
+  const signedSerialized = await signer.signTransaction({
+    nonce,
+    gasLimit: 21000n,
+    gasPrice,
+    to: expectedAddress,
+    value: 1n,
+    data: "0x",
+    type: 0,
+  });
+
+  const parsedSigned = EthersTransaction.from(signedSerialized);
+  assert.equal(parsedSigned.chainId, BigInt(network.chainId), `${chainKey} inferred chainId mismatch`);
+  assert.equal(parsedSigned.from?.toLowerCase(), expectedAddress, `${chainKey} parsed from mismatch`);
+  assert.equal(parsedSigned.to?.toLowerCase(), expectedAddress, `${chainKey} parsed to mismatch`);
 }
 
 function isRetryableNetworkError(error) {
@@ -552,6 +600,17 @@ function getNativeEthereumPrice(pricePayload) {
   return price;
 }
 
+function assertRequiredNativePrices(pricePayload, requiredChains) {
+  const prices = pricePayload?.prices;
+  assert.ok(prices && typeof prices === "object", "price cache should include prices object");
+
+  for (const chainKey of requiredChains) {
+    const key = `native:${chainKey}`;
+    const price = Number(prices?.[key] ?? 0);
+    assert.ok(price > 0, `${key} price missing from /api/v1/price/cache`);
+  }
+}
+
 function weiForUsd(targetUsd, nativePriceUsd) {
   const wei = Math.floor((targetUsd / nativePriceUsd) * 1e18);
   assert.ok(wei > 0, "expected wei amount derived from USD target to be positive");
@@ -597,6 +656,7 @@ async function main() {
 
   const statusUid = String(initialStatus?.uid ?? "").trim();
   assert.ok(statusUid, "wallet/status did not include uid");
+  assertMonadAddressPresent(initialStatus);
   const envUid = String(process.env.CLAY_UID?.trim() || "").trim();
   if (envUid && envUid !== statusUid) {
     throw new Error(`CLAY_UID mismatch: env=${envUid} status=${statusUid}`);
@@ -620,6 +680,7 @@ async function main() {
     );
     assert.ok(data, "expected JSON body");
     assert.ok("status" in data || "gateway_status" in data);
+    assertMonadAddressPresent(data);
   });
 
   await runStep("reject wrong bearer", async () => {
@@ -704,6 +765,7 @@ async function main() {
     assert.ok(priceProbe.data && typeof priceProbe.data === "object", "price cache should return JSON");
 
     if (currentStatus?.oracle_healthy) {
+      assertRequiredNativePrices(priceProbe.data, ["ethereum", "solana", "sui", "bitcoin", "monad"]);
       const nativeEthereumPrice = getNativeEthereumPrice(priceProbe.data);
       assert.ok(nativeEthereumPrice > 0, "oracle healthy should expose native:ethereum price");
     }
@@ -717,6 +779,7 @@ async function main() {
       originalPriceProbe.data && typeof originalPriceProbe.data === "object"
         ? originalPriceProbe.data.prices ?? {}
         : {};
+    const effectiveSpentUsd = Number(currentStatus?.today_effective_spent_usd ?? 0);
 
     const recipient = "0x000000000000000000000000000000000000dEaD";
     const provider = createClawSandboxJsonRpcProvider({
@@ -740,7 +803,7 @@ async function main() {
 
       await updateLocalPolicy({
         max_amount_per_tx_usd: 1000,
-        daily_limit_usd: 1,
+        daily_limit_usd: effectiveSpentUsd + 1000,
         blacklist_to: [],
       });
 
@@ -863,6 +926,12 @@ async function main() {
   await runStep("supported EVM personal_sign verification", async () => {
     for (const chainKey of SUPPORTED_EVM_CHAINS.filter((chainKey) => chainKey !== "ethereum")) {
       await assertEvmPersonalSignForChain(client, currentStatus, uid, chainKey);
+    }
+  });
+
+  await runStep("ClawEthersSigner infers chainId for supported EVM chains", async () => {
+    for (const chainKey of SUPPORTED_EVM_CHAINS) {
+      await assertProviderInferredEvmTransactionSignForChain(currentStatus, uid, chainKey);
     }
   });
 

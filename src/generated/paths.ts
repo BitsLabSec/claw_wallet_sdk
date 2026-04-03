@@ -91,11 +91,6 @@ export interface paths {
                          *       "policy": {
                          *         "max_amount_per_tx_usd": 1000,
                          *         "daily_limit_usd": 5000,
-                         *         "allowed_chains": [
-                         *           "ethereum",
-                         *           "solana",
-                         *           "sui"
-                         *         ],
                          *         "pin_ttl_seconds": 900,
                          *         "daily_max_tx_count": 20,
                          *         "unpriced_asset_policy": "block",
@@ -621,6 +616,50 @@ export interface paths {
                          *     }
                          */
                         "application/json": components["schemas"]["StatusMessage"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/wallet/refresh/chain": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Refresh a single chain and wait until it completes */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        chain: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Chain refresh completed or existing inflight refresh waited */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            [key: string]: unknown;
+                        };
                     };
                 };
             };
@@ -1451,6 +1490,180 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/tx/bridge/lifi/quote": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * LI.FI Cross-chain Quote Estimation
+         * @description Estimate cross-chain/swap between any chain and any token, returning estimated time, available routes, and estimated costs.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["LifiBridgeRequest"];
+                };
+            };
+            responses: {
+                /** @description Estimation result */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["LifiQuoteResponse"];
+                    };
+                };
+                /** @description Invalid request parameters */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ErrorText"];
+                    };
+                };
+                /** @description Internal or external API call error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ErrorText"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tx/bridge/lifi/execute": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * LI.FI Cross-chain Execution
+         * @description Execute cross-chain transaction, sign and broadcast. Includes possible intermediate routes.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["LifiBridgeRequest"];
+                };
+            };
+            responses: {
+                /** @description Execution result */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["LifiBridgeResponse"];
+                    };
+                };
+                /** @description Invalid request parameters */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ErrorText"];
+                    };
+                };
+                /** @description Transaction execution failed */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ErrorText"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tx/bridge/lifi/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * LI.FI Cross-chain Status Query
+         * @description Poll for the latest status of an asynchronous cross-chain task by UID.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["LifiStatusRequest"];
+                };
+            };
+            responses: {
+                /** @description Status result */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["LifiStatusResponse"];
+                    };
+                };
+                /** @description Missing or invalid parameters */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ErrorText"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/sandbox/shutdown": {
         parameters: {
             query?: never;
@@ -1778,7 +1991,6 @@ export interface components {
             daily_limit_usd?: number;
             whitelist_to?: components["schemas"]["AddressNote"][];
             blacklist_to?: components["schemas"]["AddressNote"][];
-            allowed_chains?: string[];
             /** Format: int64 */
             pin_ttl_seconds?: number;
             daily_max_tx_count?: number;
@@ -1905,7 +2117,7 @@ export interface components {
         /**
          * @description Supported sign modes: `transaction`, `personal_sign`, `typed_data`, `raw_hash`.
          *
-         *     Supported chains include the EVM set (`ethereum`, `base`, `bsc`, `arbitrum`, `optimism`, `polygon`, `avalanche`, `linea`, `zksync`, `monad`)
+         *     Supported chains include the EVM set (`ethereum`, `0g`, `base`, `bsc`, `arbitrum`, `optimism`, `polygon`, `avalanche`, `linea`, `zksync`, `monad`)
          *     plus `solana`, `sui`, `aptos`, `ton`, and `bitcoin` depending on the flow.
          */
         SignRequest: {
@@ -2025,6 +2237,68 @@ export interface components {
             body?: {
                 [key: string]: unknown;
             };
+        };
+        LifiBridgeRequest: {
+            uid?: string;
+            /** @description Source Chain ID (LI.FI standard ID). Common IDs: ETH: '1', BSC: '56', Base: '8453', Arbitrum: '42161', Optimism: '10', Polygon: '137', Solana: '1151111081099710', Sui: '9270000000000000', Bitcoin: '20000000000001'. For more, see https://docs.li.fi/introduction/chains */
+            from_chain_id: string;
+            /** @description Source wallet address */
+            from_address: string;
+            /** @description Source Token address or symbol */
+            from_token: string;
+            /** @description Transaction amount (in smallest unit) */
+            amount: string;
+            /** @description Target Chain ID (LI.FI standard ID). Common IDs are same as from_chain_id. */
+            to_chain_id: string;
+            /** @description Target wallet address */
+            to_address: string;
+            /** @description Target Token address or symbol */
+            to_token: string;
+            /** @description Slippage tolerance (optional, default 0.005) */
+            slippage?: number;
+        };
+        LifiRouteStep: {
+            tool?: string;
+            from_token?: string;
+            to_token?: string;
+            /** @description Estimated time for this step in seconds */
+            estimated_time?: number;
+        };
+        LifiQuoteResponse: {
+            is_success?: boolean;
+            reason?: string;
+            tool?: string;
+            steps?: components["schemas"]["LifiRouteStep"][];
+            /** @description Total estimated duration in seconds */
+            estimated_duration?: number;
+            amount_in?: string;
+            amount_out?: string;
+        };
+        LifiExecuteStep: {
+            from_chain_id?: string;
+            to_chain_id?: string;
+            tx_hash?: string;
+            status?: string;
+            status_url?: string;
+        };
+        LifiBridgeResponse: {
+            uid?: string;
+            success?: boolean;
+            message?: string;
+            steps?: components["schemas"]["LifiExecuteStep"][];
+            final_tx_hash?: string;
+            final_status_url?: string;
+        };
+        LifiStatusRequest: {
+            uid: string;
+        };
+        LifiStatusResponse: {
+            /** @description PENDING, DONE, FAILED, NOT_FOUND */
+            status?: string;
+            message?: string;
+            steps?: components["schemas"]["LifiExecuteStep"][];
+            final_tx_hash?: string;
+            final_status_url?: string;
         };
     };
     responses: never;
