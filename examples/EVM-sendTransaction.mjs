@@ -2,9 +2,9 @@ import { parseEther, parseUnits, formatEther } from "ethers";
 import { ClawEthersSigner, createClawSandboxJsonRpcProvider } from "../dist/ethers.js";
 
 const sandboxUrl = process.env.CLAY_SANDBOX_URL ?? "http://127.0.0.1:9000";
-const sandboxToken = process.env.CLAY_AGENT_TOKEN?.trim() ?? "f7c20b62d6995a06f76512f707efd30a5cb0";
-const uid = process.env.CLAY_UID?.trim() ?? "77990096f90cd0500d46ac4fc0615b76";
-const to = process.env.BSC_TO?.trim() ?? "0xa48109be889e879bc85d4d2b615c1541d57ffb9c";
+const sandboxToken = process.env.CLAY_AGENT_TOKEN?.trim() ?? "";
+const uid = process.env.CLAY_UID?.trim() ?? "";
+const to = process.env.BSC_TO?.trim() ?? "";
 const amount = process.env.BSC_AMOUNT ?? "0.0001";
 const chainKey = process.env.BSC_CHAIN_KEY ?? "bsc";
 
