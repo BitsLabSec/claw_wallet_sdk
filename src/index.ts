@@ -28,6 +28,8 @@ export {
   type ClawSignRequest,
   type ClawSignResult,
   type ClawPolicy,
+  type ClawPolicyAddressNote,
+  type ClawPolicyUpdatePatch,
   type ClawStatusMessage,
   type ClawTransferRequest,
   type ClawTransferResult,

@@ -65,6 +65,7 @@ function numberFromEnv(name, fallback) {
 
 const FETCH_TIMEOUT_MS = numberFromEnv("CLAW_TEST_FETCH_TIMEOUT_MS", 20_000);
 const STEP_TIMEOUT_MS = numberFromEnv("CLAW_TEST_STEP_TIMEOUT_MS", 45_000);
+let sandbox = null;
 
 function timeoutSignal(ms, existing) {
   const signal = AbortSignal.timeout(ms);
@@ -492,20 +493,7 @@ function authHeaders() {
 }
 
 async function updateLocalPolicy(patch) {
-  const response = await timedFetch(`${cfg.baseUrl}/api/v1/policy/update`, {
-    method: "POST",
-    headers: authHeaders(),
-    body: JSON.stringify(patch),
-  });
-  const text = await response.text();
-  assert.equal(
-    response.status,
-    200,
-    `policy update failed ${response.status}: ${text.slice(0, 400)}`,
-  );
-  const parsed = text ? JSON.parse(text) : {};
-  assert.equal(parsed.status, "policy_updated");
-  return parsed.policy ?? parsed;
+  return sandbox.updateLocalPolicy(patch);
 }
 
 async function setOracleTestState(patch) {
@@ -529,6 +517,7 @@ function buildPolicyRestorePatch(policy) {
     daily_limit_usd: policy?.daily_limit_usd ?? 0,
     daily_max_tx_count: policy?.daily_max_tx_count ?? 0,
     whitelist_to: Array.isArray(policy?.whitelist_to) ? policy.whitelist_to : [],
+    blacklist_to: Array.isArray(policy?.blacklist_to) ? policy.blacklist_to : [],
     unpriced_asset_policy: policy?.unpriced_asset_policy ?? "allow",
     allow_blind_sign: Boolean(policy?.allow_blind_sign),
     strict_plain_text: Boolean(policy?.strict_plain_text),
@@ -558,7 +547,95 @@ async function fetchBindChallenge(uid) {
   );
   const parsed = text ? JSON.parse(text) : {};
   assert.ok(parsed.message_hash_hex, "bind challenge did not include message_hash_hex");
+  parsed.user_id = userID;
+  parsed.jwt = token;
   return parsed;
+}
+
+function relayAuthHeaders(relayAuth) {
+  assert.ok(relayAuth?.jwt, "relay auth JWT is required");
+  return {
+    Accept: "application/json",
+    Authorization: `Bearer ${relayAuth.jwt}`,
+  };
+}
+
+async function fetchBackendPolicy(uid, relayAuth) {
+  assert.ok(cfg.relayUrl, "CLAY_RELAY_URL is required for backend policy coverage");
+  const url = new URL("/policy", cfg.relayUrl);
+  url.searchParams.set("uid", uid);
+  url.searchParams.set("user_id", relayAuth.userID);
+  const response = await timedFetch(url, {
+    method: "GET",
+    headers: relayAuthHeaders(relayAuth),
+  });
+  const text = await response.text();
+  assert.equal(response.status, 200, `backend policy fetch failed ${response.status}: ${text.slice(0, 400)}`);
+  return text ? JSON.parse(text) : {};
+}
+
+async function addBackendPolicyAddresses(uid, relayAuth, addresses) {
+  assert.ok(cfg.relayUrl, "CLAY_RELAY_URL is required for backend policy coverage");
+  const response = await timedFetch(`${cfg.relayUrl}/policy/addresses/add`, {
+    method: "POST",
+    headers: {
+      ...relayAuthHeaders(relayAuth),
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      uid,
+      addresses,
+    }),
+  });
+  const text = await response.text();
+  assert.equal(
+    response.status,
+    200,
+    `backend policy address add failed ${response.status}: ${text.slice(0, 400)}`,
+  );
+  return text ? JSON.parse(text) : {};
+}
+
+function randomHex(bytes) {
+  return Buffer.from(webcrypto.getRandomValues(new Uint8Array(bytes))).toString("hex");
+}
+
+function policyHasAddress(list, chain, address) {
+  const targetChain = String(chain ?? "").trim().toLowerCase();
+  const targetAddress = String(address ?? "").trim().toLowerCase();
+  return Array.isArray(list) && list.some((item) => {
+    const itemChain = String(item?.chain ?? "").trim().toLowerCase();
+    const itemAddress = String(item?.address ?? "").trim().toLowerCase();
+    return itemChain === targetChain && itemAddress === targetAddress;
+  });
+}
+
+async function waitForBackendPolicyAddress(uid, relayAuth, chain, address, fieldName) {
+  let lastPolicy = null;
+  for (let attempt = 0; attempt < 80; attempt += 1) {
+    lastPolicy = await fetchBackendPolicy(uid, relayAuth);
+    if (policyHasAddress(lastPolicy?.[fieldName], chain, address)) {
+      return lastPolicy;
+    }
+    await sleep(500);
+  }
+  throw new Error(
+    `backend policy did not include ${fieldName} ${chain}:${address}; last=${JSON.stringify(lastPolicy)}`,
+  );
+}
+
+async function waitForLocalPolicyAddress(chain, address, fieldName) {
+  let lastPolicy = null;
+  for (let attempt = 0; attempt < 80; attempt += 1) {
+    lastPolicy = await sandbox.getLocalPolicy();
+    if (policyHasAddress(lastPolicy?.[fieldName], chain, address)) {
+      return lastPolicy;
+    }
+    await sleep(500);
+  }
+  throw new Error(
+    `local policy did not include ${fieldName} ${chain}:${address}; last=${JSON.stringify(lastPolicy)}`,
+  );
 }
 
 function issueBackendTestJWT(userID) {
@@ -662,8 +739,9 @@ async function main() {
   }
   const uid = statusUid;
   let currentStatus = initialStatus;
+  let relayAuth = null;
 
-  const sandbox = new ClawSandboxClient({
+  sandbox = new ClawSandboxClient({
     uid,
     sandboxUrl: cfg.baseUrl,
     sandboxToken: cfg.agentToken || "",
@@ -842,11 +920,72 @@ async function main() {
     }
 
     const challenge = await fetchBindChallenge(uid);
+    relayAuth = {
+      userID: challenge.user_id,
+      jwt: challenge.jwt,
+    };
     const bindResult = await sandbox.bindWallet({
       message_hash_hex: challenge.message_hash_hex,
     });
     assert.equal(bindResult?.status, "wallet_bound");
     currentStatus = await waitForRelayBound(client);
+  });
+
+  await runStep("policy sync merges local and backend blacklists", async () => {
+    if (!cfg.relayUrl) {
+      return;
+    }
+    if (!relayAuth) {
+      throw new Error("relay auth context missing; run this coverage against a fresh bootstrap");
+    }
+
+    const originalPolicy = await sandbox.getLocalPolicy();
+    const backendOnlyAddress = `0x${randomHex(20)}`;
+    const localOnlyAddress = `0x${randomHex(32)}`;
+
+    const existingBlacklist = Array.isArray(originalPolicy?.blacklist_to)
+      ? originalPolicy.blacklist_to
+      : [];
+
+    await addBackendPolicyAddresses(uid, relayAuth, [
+      {
+        chain: "ethereum",
+        wallet_address: backendOnlyAddress,
+        type: 1,
+        note: "backend-sync-proof",
+      },
+    ]);
+
+    await updateLocalPolicy({
+      blacklist_to: [
+        ...existingBlacklist,
+        {
+          chain: "sui",
+          address: localOnlyAddress,
+          note: "local-sync-proof",
+        },
+      ],
+    });
+    currentStatus = await sandbox.reactivateWallet();
+    assert.equal(currentStatus?.status, "ready");
+
+    const backendPolicy = await waitForBackendPolicyAddress(
+      uid,
+      relayAuth,
+      "sui",
+      localOnlyAddress,
+      "blacklisted_addresses",
+    );
+    assert.ok(
+      policyHasAddress(backendPolicy?.blacklisted_addresses, "ethereum", backendOnlyAddress),
+      "backend policy should preserve the backend-origin blacklist entry",
+    );
+
+    const localPolicy = await waitForLocalPolicyAddress("ethereum", backendOnlyAddress, "blacklist_to");
+    assert.ok(
+      policyHasAddress(localPolicy?.blacklist_to, "sui", localOnlyAddress),
+      "local policy should preserve the sandbox-origin blacklist entry",
+    );
   });
 
   await runStep("viem RPC proxy eth_blockNumber", async () => {
