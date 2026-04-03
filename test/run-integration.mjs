@@ -481,11 +481,14 @@ function assertReadyStatus(status, context) {
 }
 
 function authHeaders() {
-  return {
+  const headers = {
     Accept: "application/json",
-    Authorization: `Bearer ${cfg.agentToken}`,
     "Content-Type": "application/json",
   };
+  if (cfg.agentToken) {
+    headers.Authorization = `Bearer ${cfg.agentToken}`;
+  }
+  return headers;
 }
 
 async function updateLocalPolicy(patch) {
@@ -525,7 +528,7 @@ function buildPolicyRestorePatch(policy) {
     max_amount_per_tx_usd: policy?.max_amount_per_tx_usd ?? 0,
     daily_limit_usd: policy?.daily_limit_usd ?? 0,
     daily_max_tx_count: policy?.daily_max_tx_count ?? 0,
-    blacklist_to: Array.isArray(policy?.blacklist_to) ? policy.blacklist_to : [],
+    whitelist_to: Array.isArray(policy?.whitelist_to) ? policy.whitelist_to : [],
     unpriced_asset_policy: policy?.unpriced_asset_policy ?? "allow",
     allow_blind_sign: Boolean(policy?.allow_blind_sign),
     strict_plain_text: Boolean(policy?.strict_plain_text),
@@ -647,10 +650,6 @@ async function main() {
     assert.equal(data.status, "ok");
   });
 
-  if (!cfg.agentToken) {
-    throw new Error(`No sandbox token found in env or ${cfg.envPath}`);
-  }
-
   const { data: initialStatus, response: statusResponse } = await client.GET("/api/v1/wallet/status", {});
   assert.equal(statusResponse.status, 200, "wallet/status required for integration runner");
 
@@ -684,6 +683,9 @@ async function main() {
   });
 
   await runStep("reject wrong bearer", async () => {
+    if (!cfg.agentToken) {
+      return;
+    }
     const wrongClient = createClawWalletClient({
       baseUrl: cfg.baseUrl,
       agentToken: "definitely-not-the-sandbox-token",
@@ -804,7 +806,7 @@ async function main() {
       await updateLocalPolicy({
         max_amount_per_tx_usd: 1000,
         daily_limit_usd: effectiveSpentUsd + 1000,
-        blacklist_to: [],
+        whitelist_to: [],
       });
 
       await assert.rejects(

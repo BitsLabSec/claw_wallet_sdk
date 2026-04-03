@@ -149,14 +149,9 @@ async function benchmarkBlockingChainRefresh(sandbox, chain) {
   );
 }
 
-if (!cfg.agentToken) {
-  process.stdout.write("sandbox readonly skipped: missing CLAY_AGENT_TOKEN / AGENT_TOKEN\n");
-  process.exit(0);
-}
-
 const client = createClawWalletClient({
   baseUrl: cfg.baseUrl,
-  agentToken: cfg.agentToken,
+  agentToken: cfg.agentToken || undefined,
   fetch: timedFetch,
 });
 const { data, response } = await client.GET("/api/v1/wallet/status", {});
@@ -174,7 +169,7 @@ const uid = statusUid;
 const sandbox = new ClawSandboxClient({
   uid,
   sandboxUrl: cfg.baseUrl,
-  sandboxToken: cfg.agentToken,
+  sandboxToken: cfg.agentToken || "",
   fetch: timedFetch,
 });
 const blockingSandbox = new ClawSandboxClient({
