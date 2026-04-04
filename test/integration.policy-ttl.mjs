@@ -66,6 +66,25 @@ function normalizeAddressList(list) {
     .filter(Boolean);
 }
 
+function normalizePolicyAddressItems(list, chain) {
+  if (!Array.isArray(list)) return [];
+  const wantedChain = String(chain ?? "").trim().toLowerCase();
+  return list
+    .map((item) => {
+      if (!item || typeof item !== "object") return "";
+      const address = typeof item.address === "string" ? item.address.trim() : "";
+      if (!address) return "";
+      const itemChain = typeof item.chain === "string" ? item.chain.trim().toLowerCase() : "";
+      if (wantedChain && itemChain !== wantedChain) return "";
+      return `${itemChain}|${address}`;
+    })
+    .filter(Boolean);
+}
+
+function sortStrings(values) {
+  return [...values].sort((a, b) => a.localeCompare(b));
+}
+
 async function getBackendPolicy() {
   const url = new URL("/policy", requireString("CLAY_RELAY_URL", ctx.relayUrl));
   url.searchParams.set("uid", requireString("CLAY_UID", ctx.uid));
@@ -76,6 +95,22 @@ async function getBackendPolicy() {
   });
   assert.equal(response.status, 200, `backend policy fetch failed ${response.status}: ${text.slice(0, 400)}`);
   return data;
+}
+
+async function waitForBackendPolicyAddresses(expected, chain, label) {
+  const wanted = sortStrings(expected);
+  let last = null;
+  for (let attempt = 0; attempt < 120; attempt += 1) {
+    last = await getBackendPolicy();
+    const actual = sortStrings(normalizePolicyAddressItems(last?.whitelisted_addresses, chain)).map((item) => item.split("|", 2)[1]);
+    if (actual.length === wanted.length && actual.every((value, index) => value === wanted[index])) {
+      return last;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+  throw new Error(
+    `${label} backend whitelist did not match ${JSON.stringify(wanted)}; last=${JSON.stringify(normalizePolicyAddressItems(last?.whitelisted_addresses, chain))}`,
+  );
 }
 
 async function getPolicyChallenge() {
@@ -269,6 +304,25 @@ async function main() {
     EXPECTED_POLICY_TTL,
     `sandbox local policy ttl mismatch: ${updatedLocalPolicy?.pin_ttl_seconds}`,
   );
+
+  const caseSensitiveOne = "AbCdEfGhijk12345";
+  const caseSensitiveTwo = "aBcDeFgHijk12345";
+  await sandbox.updateLocalPolicy({
+    whitelist_to: [
+      { address: caseSensitiveOne, chain: "solana", note: "primary" },
+      { address: caseSensitiveTwo, chain: "solana", note: "secondary" },
+    ],
+  });
+  await waitForBackendPolicyAddresses(
+    [caseSensitiveOne, caseSensitiveTwo],
+    "solana",
+    "initial local sync",
+  );
+
+  await sandbox.updateLocalPolicy({
+    whitelist_to: [{ address: caseSensitiveTwo, chain: "solana", note: "secondary" }],
+  });
+  await waitForBackendPolicyAddresses([caseSensitiveTwo], "solana", "prune local sync");
 
   process.stdout.write(
     `policy ttl integration passed (default=${EXPECTED_DEFAULT_TTL}, applied=${EXPECTED_POLICY_TTL}, remaining=${ttlRemaining})\n`,
