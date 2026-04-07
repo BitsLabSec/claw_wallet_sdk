@@ -81,6 +81,25 @@ async function timedFetch(input, init = {}) {
   return fetch(input, { ...init, signal });
 }
 
+async function assertBackendRelayHealthy(relayUrl) {
+  const url = String(relayUrl || "").trim();
+  if (!url) {
+    throw new Error(
+      "CLAY_RELAY_URL is required for wallet lifecycle checks; start the local backend first or use scripts/run_fresh_sdk_integration.py",
+    );
+  }
+  try {
+    const res = await timedFetch(`${url.replace(/\/+$/, "")}/health`, {});
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      throw new Error(`backend relay health check failed: HTTP ${res.status} ${text}`.trim());
+    }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    throw new Error(`backend relay health check failed for ${url}: ${msg}`);
+  }
+}
+
 function errorText(error) {
   if (typeof error === "string") return error;
   if (error && typeof error === "object" && "message" in error) {
@@ -714,6 +733,7 @@ async function signEthereumTransaction(signer, to, value) {
 const cfg = loadIntegrationConfig();
 
 async function main() {
+  await assertBackendRelayHealthy(cfg.relayUrl);
   const client = createClawWalletClient({
     baseUrl: cfg.baseUrl,
     agentToken: cfg.agentToken || undefined,
