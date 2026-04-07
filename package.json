@@ -64,6 +64,7 @@
     "test:sandbox-readonly": "npm run build && node test/integration.sandbox-readonly.mjs",
     "test:integration": "npm run build && node test/run-integration.mjs",
     "test:policy-ttl": "npm run build && node test/integration.policy-ttl.mjs",
+    "test:policy-e2e": "npm run build && node test/integration.policy-e2e.mjs",
     "test:pack-consumer": "npm run build && node test/pack-consumer.mjs",
     "test:all": "npm run test:fixtures && npm run test:unit && npm run test:openapi-public && npm run test:sandbox-readonly && npm run test:pack-consumer && npm run test:integration",
     "prepublishOnly": "npm run build && npm run test:unit && npm run test:pack-consumer"
