@@ -119,6 +119,18 @@ async function getBackendPolicy() {
   return data;
 }
 
+async function getBackendSandboxStatus() {
+  const { response, data, text } = await fetchJson(
+    `${requireString("CLAY_RELAY_URL", ctx.relayUrl)}/wallets/${encodeURIComponent(requireString("CLAY_UID", ctx.uid))}/sandbox/status`,
+    {
+      method: "GET",
+      headers: relayHeaders(requireString("CLAY_TEST_USER_JWT", ctx.userJWT)),
+    },
+  );
+  assert.equal(response.status, 200, `backend sandbox status failed ${response.status}: ${text.slice(0, 400)}`);
+  return data;
+}
+
 async function waitForBackendPolicyAddressItems(expected, label) {
   const wanted = sortStrings(expected);
   let last = null;
@@ -315,6 +327,61 @@ function ttlRemainingSecondsFromStatus(status) {
   return Math.max(0, Math.floor((Date.parse(expiry) - Date.now()) / 1000));
 }
 
+async function assertBackendTTLDoesNotGrow(label, durationMs = 26_000, stepMs = 4_000) {
+  process.stdout.write(`[ttl-check] waiting for backend active ttl: ${label}\n`);
+  let firstActive = null;
+  for (let attempt = 0; attempt < 30; attempt += 1) {
+    const status = await getBackendSandboxStatus();
+    const ttl = ttlRemainingSecondsFromStatus(status);
+    process.stdout.write(
+      `[ttl-check] pre-sample attempt=${attempt + 1} status=${String(status?.status ?? "")} fresh=${Boolean(status?.fresh)} ttl=${Number.isFinite(ttl) ? ttl : "n/a"}\n`,
+    );
+    if (String(status?.status ?? "").toLowerCase() === "active" && Number.isFinite(ttl) && ttl > 0) {
+      firstActive = {
+        atMs: 0,
+        ttl,
+        status: String(status?.status ?? ""),
+        fresh: Boolean(status?.fresh),
+      };
+      break;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+  }
+  assert.ok(firstActive, `${label} backend sandbox status never became active with a positive TTL`);
+
+  const samples = [];
+  const startedAt = Date.now();
+  samples.push(firstActive);
+  process.stdout.write(`[ttl-check] baseline ttl=${firstActive.ttl}\n`);
+  while (Date.now() - startedAt <= durationMs) {
+    const status = await getBackendSandboxStatus();
+    const ttl = ttlRemainingSecondsFromStatus(status);
+    assert.ok(Number.isFinite(ttl), `${label} backend sandbox status did not expose ttl_remaining_seconds`);
+    assert.equal(String(status?.status ?? "").toLowerCase(), "active", `${label} backend sandbox status regressed from active: ${JSON.stringify(status)}`);
+    const sample = {
+      atMs: Date.now() - startedAt,
+      ttl,
+      status: String(status?.status ?? ""),
+      fresh: Boolean(status?.fresh),
+    };
+    samples.push(sample);
+    process.stdout.write(`[ttl-check] sample at=${sample.atMs}ms ttl=${sample.ttl}\n`);
+    await new Promise((resolve) => setTimeout(resolve, stepMs));
+  }
+
+  for (let i = 1; i < samples.length; i += 1) {
+    const prev = samples[i - 1];
+    const next = samples[i];
+    const growth = next.ttl - prev.ttl;
+    assert.ok(
+      growth <= 2,
+      `${label} backend TTL grew unexpectedly: samples=${JSON.stringify(samples)}`,
+    );
+  }
+
+  return samples;
+}
+
 async function main() {
   requireString("CLAY_SANDBOX_URL", ctx.baseUrl);
   requireString("CLAY_UID", ctx.uid);
@@ -392,6 +459,7 @@ async function main() {
     ttlRemaining <= EXPECTED_POLICY_TTL && ttlRemaining >= EXPECTED_POLICY_TTL - 180,
     `unlock ttl remaining expected near ${EXPECTED_POLICY_TTL}, got ${ttlRemaining}`,
   );
+  const ttlMonotonicSamples = await assertBackendTTLDoesNotGrow("post-unlock ttl");
 
   const updatedBackendPolicy = await getBackendPolicy();
   assert.equal(
@@ -507,7 +575,7 @@ async function main() {
   await waitForSandboxLocalWhitelist(localBaselineWhitelist, "sandbox cleanup whitelist", sandbox);
 
   process.stdout.write(
-    `policy e2e integration passed (default=${EXPECTED_DEFAULT_TTL}, applied=${EXPECTED_POLICY_TTL}, remaining=${ttlRemaining}, cross_chain_delete_ok=true, local_whitelist_rejected=true, local_policy_sync_ok=true, local_policy_limits_enforced=true)\n`,
+    `policy e2e integration passed (default=${EXPECTED_DEFAULT_TTL}, applied=${EXPECTED_POLICY_TTL}, remaining=${ttlRemaining}, cross_chain_delete_ok=true, local_whitelist_rejected=true, local_policy_sync_ok=true, local_policy_limits_enforced=true, ttl_monotonic_samples=${ttlMonotonicSamples.length})\n`,
   );
 }
 
