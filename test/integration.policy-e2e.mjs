@@ -131,6 +131,24 @@ async function getBackendSandboxStatus() {
   return data;
 }
 
+async function updateLocalPolicyDetailed(patch) {
+  const headers = {
+    Accept: "application/json",
+    "Content-Type": "application/json",
+  };
+  const token = String(ctx.agentToken ?? "").trim();
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+  const { response, data, text } = await fetchJson(`${requireString("CLAY_SANDBOX_URL", ctx.baseUrl)}/api/v1/policy/update`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(patch),
+  });
+  assert.equal(response.status, 200, `local policy update failed ${response.status}: ${text.slice(0, 400)}`);
+  return data;
+}
+
 async function waitForBackendPolicyAddressItems(expected, label) {
   const wanted = sortStrings(expected);
   let last = null;
@@ -281,30 +299,42 @@ async function waitForSandboxLocalPolicySettings(expected, label, sandbox) {
   );
 }
 
+async function assertSandboxLocalPolicySettingsStay(expected, label, sandbox, durationMs = 16_000, stepMs = 4_000) {
+  const samples = [];
+  const startedAt = Date.now();
+  while (Date.now() - startedAt <= durationMs) {
+    const policy = await sandbox.getLocalPolicy();
+    const actual = normalizePolicySettingsFromSandbox(policy);
+    samples.push({
+      atMs: Date.now() - startedAt,
+      ...actual,
+    });
+    assert.deepEqual(
+      actual,
+      expected,
+      `${label} sandbox local policy drifted: samples=${JSON.stringify(samples)}`,
+    );
+    await new Promise((resolve) => setTimeout(resolve, stepMs));
+  }
+  return samples;
+}
+
 function buildCommittedPolicy(backendPolicy, localPolicy) {
   return {
-    daily_transfer_limit_usd: Number(backendPolicy?.daily_transfer_limit_usd ?? 1000),
-    per_tx_limit_usd: Number(backendPolicy?.per_tx_limit_usd ?? 100),
+    daily_transfer_limit_usd: 2468,
+    per_tx_limit_usd: 135,
     allowed_tokens: Array.isArray(backendPolicy?.allowed_tokens) ? backendPolicy.allowed_tokens : [],
     blacklisted_addresses: normalizeAddressList(backendPolicy?.blacklisted_addresses),
     require_approval_above_usd: Number(backendPolicy?.require_approval_above_usd ?? 200),
     whitelisted_addresses: normalizeAddressList(backendPolicy?.whitelisted_addresses),
     pin_ttl_seconds: EXPECTED_POLICY_TTL,
-    daily_max_tx_count: Number(
-      backendPolicy?.daily_max_tx_count ?? localPolicy?.daily_max_tx_count ?? 1000,
-    ),
-    unpriced_asset_policy: String(
-      backendPolicy?.unpriced_asset_policy ?? localPolicy?.unpriced_asset_policy ?? "block",
-    ),
+    daily_max_tx_count: 17,
+    unpriced_asset_policy: "allow",
     block_high_risk_tokens: Boolean(
       backendPolicy?.block_high_risk_tokens ?? localPolicy?.block_high_risk_tokens ?? true,
     ),
-    allow_blind_sign: Boolean(
-      backendPolicy?.allow_blind_sign ?? localPolicy?.allow_blind_sign ?? false,
-    ),
-    strict_plain_text: Boolean(
-      backendPolicy?.strict_plain_text ?? localPolicy?.strict_plain_text ?? true,
-    ),
+    allow_blind_sign: true,
+    strict_plain_text: false,
     keep_share2_resident: Boolean(
       backendPolicy?.keep_share2_resident ?? localPolicy?.keep_share2_resident ?? false,
     ),
@@ -325,6 +355,38 @@ function ttlRemainingSecondsFromStatus(status) {
   const expiry = String(status?.pin_residency_expires_at ?? "").trim();
   if (!expiry) return NaN;
   return Math.max(0, Math.floor((Date.parse(expiry) - Date.now()) / 1000));
+}
+
+function normalizeCommittedPolicySettings(policy) {
+  return {
+    max_amount_per_tx_usd: Number(policy?.per_tx_limit_usd ?? 0),
+    daily_limit_usd: Number(policy?.daily_transfer_limit_usd ?? 0),
+    daily_max_tx_count: Number(policy?.daily_max_tx_count ?? 0),
+    unpriced_asset_policy: String(policy?.unpriced_asset_policy ?? "").trim().toLowerCase(),
+    allow_blind_sign: Boolean(policy?.allow_blind_sign),
+    strict_plain_text: Boolean(policy?.strict_plain_text),
+    pin_ttl_seconds: Number(policy?.pin_ttl_seconds ?? 0),
+  };
+}
+
+async function assertBackendPolicySettingsStay(expected, label, durationMs = 16_000, stepMs = 4_000) {
+  const samples = [];
+  const startedAt = Date.now();
+  while (Date.now() - startedAt <= durationMs) {
+    const policy = await getBackendPolicy();
+    const actual = normalizeCommittedPolicySettings(policy);
+    samples.push({
+      atMs: Date.now() - startedAt,
+      ...actual,
+    });
+    assert.deepEqual(
+      actual,
+      expected,
+      `${label} backend policy drifted: samples=${JSON.stringify(samples)}`,
+    );
+    await new Promise((resolve) => setTimeout(resolve, stepMs));
+  }
+  return samples;
 }
 
 async function assertBackendTTLDoesNotGrow(label, durationMs = 26_000, stepMs = 4_000) {
@@ -426,12 +488,41 @@ async function main() {
   assert.ok(signed.signature_hex, "sandbox did not return policy signature");
 
   const nextPolicy = buildCommittedPolicy(backendPolicy, originalLocalPolicy);
+  const expectedCommittedSettings = normalizeCommittedPolicySettings(nextPolicy);
   const commitResult = await commitPolicy(nextPolicy, signed.signature_hex);
   assert.equal(commitResult.status, "policy_applied");
   assert.equal(commitResult.push_status, "pending", "remote-managed wallet should queue sandbox policy push");
+  const backendCommitStableSamples = await assertBackendPolicySettingsStay(
+    expectedCommittedSettings,
+    "post-commit pending policy",
+  );
 
   const appliedStatus = await waitForPolicyStatus("applied");
   assert.equal(appliedStatus.status, "applied");
+  const backendAppliedStableSamples = await assertBackendPolicySettingsStay(
+    expectedCommittedSettings,
+    "post-apply backend policy",
+  );
+  const appliedBackendPolicy = await getBackendPolicy();
+  const expectedCommittedSandboxSettings = {
+    max_amount_per_tx_usd: expectedCommittedSettings.max_amount_per_tx_usd,
+    daily_limit_usd: expectedCommittedSettings.daily_limit_usd,
+    daily_max_tx_count: expectedCommittedSettings.daily_max_tx_count,
+    blacklist_to: sortStrings(normalizePolicyAddressItems(appliedBackendPolicy?.blacklisted_addresses)),
+    unpriced_asset_policy: expectedCommittedSettings.unpriced_asset_policy,
+    allow_blind_sign: expectedCommittedSettings.allow_blind_sign,
+    strict_plain_text: expectedCommittedSettings.strict_plain_text,
+  };
+  await waitForSandboxLocalPolicySettings(
+    expectedCommittedSandboxSettings,
+    "sandbox apply committed backend policy settings before wipe",
+    sandbox,
+  );
+  const sandboxAppliedStableSamples = await assertSandboxLocalPolicySettingsStay(
+    expectedCommittedSandboxSettings,
+    "post-apply sandbox committed policy",
+    sandbox,
+  );
 
   const wiped = await sandbox.wipeWallet();
   assert.equal(wiped.status, "memory_wiped");
@@ -462,10 +553,10 @@ async function main() {
   const ttlMonotonicSamples = await assertBackendTTLDoesNotGrow("post-unlock ttl");
 
   const updatedBackendPolicy = await getBackendPolicy();
-  assert.equal(
-    Number(updatedBackendPolicy?.pin_ttl_seconds),
-    EXPECTED_POLICY_TTL,
-    `backend policy ttl mismatch: ${updatedBackendPolicy?.pin_ttl_seconds}`,
+  assert.deepEqual(
+    normalizeCommittedPolicySettings(updatedBackendPolicy),
+    expectedCommittedSettings,
+    `backend committed policy mismatch: ${JSON.stringify(normalizeCommittedPolicySettings(updatedBackendPolicy))}`,
   );
 
   const updatedLocalPolicy = await sandbox.getLocalPolicy();
@@ -473,6 +564,14 @@ async function main() {
     Number(updatedLocalPolicy?.pin_ttl_seconds),
     EXPECTED_POLICY_TTL,
     `sandbox local policy ttl mismatch: ${updatedLocalPolicy?.pin_ttl_seconds}`,
+  );
+  await waitForSandboxLocalPolicySettings(
+    {
+      ...expectedCommittedSandboxSettings,
+      blacklist_to: sortStrings(normalizePolicyAddressItems(updatedBackendPolicy?.blacklisted_addresses)),
+    },
+    "sandbox apply committed backend policy settings",
+    sandbox,
   );
 
   const baselineWhitelist = sortStrings(normalizePolicyAddressItems(updatedBackendPolicy?.whitelisted_addresses));
@@ -536,7 +635,9 @@ async function main() {
     strict_plain_text: false,
   };
 
-  const updatedFromSandbox = await sandbox.updateLocalPolicy(localPolicyPatch);
+  const updatedLocalPolicyResponse = await updateLocalPolicyDetailed(localPolicyPatch);
+  process.stdout.write(`[local-policy-sync] ${JSON.stringify(updatedLocalPolicyResponse?.sync_result ?? null)}\n`);
+  const updatedFromSandbox = updatedLocalPolicyResponse?.policy ?? updatedLocalPolicyResponse;
   assert.deepEqual(
     normalizePolicySettingsFromSandbox(updatedFromSandbox),
     expectedLocalPolicySettings,
@@ -575,7 +676,7 @@ async function main() {
   await waitForSandboxLocalWhitelist(localBaselineWhitelist, "sandbox cleanup whitelist", sandbox);
 
   process.stdout.write(
-    `policy e2e integration passed (default=${EXPECTED_DEFAULT_TTL}, applied=${EXPECTED_POLICY_TTL}, remaining=${ttlRemaining}, cross_chain_delete_ok=true, local_whitelist_rejected=true, local_policy_sync_ok=true, local_policy_limits_enforced=true, ttl_monotonic_samples=${ttlMonotonicSamples.length})\n`,
+    `policy e2e integration passed (default=${EXPECTED_DEFAULT_TTL}, applied=${EXPECTED_POLICY_TTL}, remaining=${ttlRemaining}, cross_chain_delete_ok=true, local_whitelist_rejected=true, local_policy_sync_ok=true, local_policy_limits_enforced=true, ttl_monotonic_samples=${ttlMonotonicSamples.length}, backend_commit_stable_samples=${backendCommitStableSamples.length}, backend_applied_stable_samples=${backendAppliedStableSamples.length}, sandbox_applied_stable_samples=${sandboxAppliedStableSamples.length})\n`,
   );
 }
 
