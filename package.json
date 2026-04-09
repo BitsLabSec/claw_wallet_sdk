@@ -62,6 +62,7 @@
     "test:unit": "npm run build && node test/unit.encoding.mjs && node test/unit.signing.mjs && node test/unit.history.mjs && node test/unit.evm-chain.mjs && node test/unit.evm-adapters.mjs",
     "test:openapi-public": "node test/integration.openapi-public.mjs",
     "test:sandbox-readonly": "npm run build && node test/integration.sandbox-readonly.mjs",
+    "test:integration-kite": "npm run build && node test/integration.kite.mjs",
     "test:integration": "npm run build && node test/run-integration.mjs",
     "test:policy-ttl": "npm run build && node test/integration.policy-ttl.mjs",
     "test:policy-e2e": "npm run build && node test/integration.policy-e2e.mjs",

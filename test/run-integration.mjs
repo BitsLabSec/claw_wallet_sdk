@@ -246,9 +246,9 @@ function assertMonadAddressPresent(status) {
 
 function assertKiteAddressPresent(status) {
   const ethereum = String(status?.addresses?.ethereum ?? status?.address ?? "").trim().toLowerCase();
-  const kite = String(status?.addresses?.kite ?? "").trim().toLowerCase();
+  const kite = evmExpectedAddressForChain(status, "kite").toLowerCase();
   assert.ok(ethereum.startsWith("0x"), "wallet/status missing ethereum address");
-  assert.equal(kite, ethereum, "wallet/status should expose kite address matching ethereum");
+  assert.equal(kite, ethereum, "wallet/status should resolve kite address matching ethereum fallback");
 }
 
 async function assertEvmTransactionSignForChain(client, sandbox, status, uid, chainKey) {
@@ -544,7 +544,6 @@ function buildPolicyRestorePatch(policy) {
     max_amount_per_tx_usd: policy?.max_amount_per_tx_usd ?? 0,
     daily_limit_usd: policy?.daily_limit_usd ?? 0,
     daily_max_tx_count: policy?.daily_max_tx_count ?? 0,
-    whitelist_to: Array.isArray(policy?.whitelist_to) ? policy.whitelist_to : [],
     blacklist_to: Array.isArray(policy?.blacklist_to) ? policy.blacklist_to : [],
     unpriced_asset_policy: policy?.unpriced_asset_policy ?? "allow",
     allow_blind_sign: Boolean(policy?.allow_blind_sign),
@@ -915,7 +914,6 @@ async function main() {
       await updateLocalPolicy({
         max_amount_per_tx_usd: 1000,
         daily_limit_usd: effectiveSpentUsd + 1000,
-        whitelist_to: [],
       });
 
       await assert.rejects(

@@ -37,6 +37,7 @@ export type ClawPolicyUpdatePatch = {
 const EVM_ADDRESS_FALLBACK_CHAINS = new Set([
   "ethereum",
   "0g",
+  "kite",
   "base",
   "bsc",
   "arbitrum",
