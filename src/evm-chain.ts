@@ -1,8 +1,11 @@
 const CLAW_EVM_CHAIN_ID_ENTRIES = [
   ["ethereum", 1n],
+  ["0g", 16661n],
   ["optimism", 10n],
   ["bsc", 56n],
   ["polygon", 137n],
+  ["monad", 143n],
+  ["kite", 2366n],
   ["zksync", 324n],
   ["base", 8453n],
   ["arbitrum", 42161n],

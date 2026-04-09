@@ -53,6 +53,13 @@ function assertMonadAddressPresent(status) {
   assert.equal(monad, ethereum, "wallet/status should expose monad address matching ethereum");
 }
 
+function assertKiteAddressPresent(status) {
+  const ethereum = evmAddressForChain(status, "ethereum").toLowerCase();
+  const kite = evmAddressForChain(status, "kite").toLowerCase();
+  assert.ok(ethereum.startsWith("0x"), "wallet/status missing ethereum address");
+  assert.equal(kite, ethereum, "wallet/status should expose kite address matching ethereum");
+}
+
 function snapshotKeyForChain(status, chain) {
   const address = evmAddressForChain(status, chain);
   if (!address) {
@@ -141,8 +148,19 @@ async function benchmarkBlockingChainRefresh(sandbox, chain) {
 
   const firstStatus = String(first?.status ?? "");
   const secondStatus = String(second?.status ?? "");
-  assert.ok(firstStatus === "refresh_completed" || firstStatus === "refresh_waited_existing");
-  assert.ok(secondStatus === "refresh_completed" || secondStatus === "refresh_waited_existing");
+  const allowedStatuses = new Set([
+    "refresh_completed",
+    "refresh_waited_existing",
+    "refresh_skipped_recent",
+  ]);
+  assert.ok(
+    allowedStatuses.has(firstStatus),
+    `${chain} first refresh returned unexpected status: ${firstStatus}`,
+  );
+  assert.ok(
+    allowedStatuses.has(secondStatus),
+    `${chain} second refresh returned unexpected status: ${secondStatus}`,
+  );
 
   process.stdout.write(
     `[chain-refresh] ${chain} first_ms=${firstMs} first_status=${firstStatus} second_ms=${secondMs} second_status=${secondStatus}\n`,
@@ -160,6 +178,7 @@ assert.equal(response.status, 200, "wallet/status required");
 const statusUid = String(data?.uid ?? "").trim();
 assert.ok(statusUid, "wallet/status did not include uid");
 assertMonadAddressPresent(data);
+assertKiteAddressPresent(data);
 const envUid = String(process.env.CLAY_UID?.trim() || "").trim();
 if (envUid && envUid !== statusUid) {
   throw new Error(`CLAY_UID mismatch: env=${envUid} status=${statusUid}`);
@@ -183,6 +202,7 @@ const st = await sandbox.getStatus();
 assert.ok(st && (typeof st.status === "string" || st.gateway_status));
 assert.ok(st && typeof st.asset_refresh_state === "object");
 assertMonadAddressPresent(st);
+assertKiteAddressPresent(st);
 
 if (ENABLE_SLOW_READS) {
   const assets = await sandbox.getAssets();
@@ -194,8 +214,10 @@ if (ENABLE_SLOW_READS) {
 
   await assertSlowChainRefreshBehavior(sandbox, st, "0g");
   await assertSlowChainRefreshBehavior(sandbox, st, "monad");
+  await assertSlowChainRefreshBehavior(sandbox, st, "kite");
   await benchmarkBlockingChainRefresh(blockingSandbox, "0g");
   await benchmarkBlockingChainRefresh(blockingSandbox, "monad");
+  await benchmarkBlockingChainRefresh(blockingSandbox, "kite");
 }
 
 const policyProbe = await client.GET("/api/v1/policy/local", {});
@@ -213,6 +235,7 @@ const requiredNativePriceKeys = [
   "native:sui",
   "native:bitcoin",
   "native:monad",
+  "native:kite",
 ];
 const priceMap = price.data?.prices;
 if (priceMap && typeof priceMap === "object") {

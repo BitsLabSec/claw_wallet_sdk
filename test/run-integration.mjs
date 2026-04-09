@@ -48,7 +48,7 @@ const TRANSIENT_RPC_FAILURE =
 const REFRESH_TIMEOUT_FAILURE =
   /asset refresh timed out|usage refresh timed out|retry later/i;
 
-const SUPPORTED_EVM_CHAINS = ["ethereum", "0g", "monad", "arbitrum", "base", "bsc"];
+const SUPPORTED_EVM_CHAINS = ["ethereum", "0g", "kite", "monad", "arbitrum", "base", "bsc"];
 const SUPPORTED_NON_EVM_CHAINS = ["solana", "sui", "bitcoin"];
 const DEFAULT_BACKEND_JWT_SECRET = process.env.CLAY_BACKEND_JWT_SECRET?.trim() || "claw-wallet-default-secret";
 const ETHEREUM_USDC = "0xA0b86991c6218b36c1d19d4a2e9eb0ce3606eb48";
@@ -242,6 +242,13 @@ function assertMonadAddressPresent(status) {
   const monad = String(status?.addresses?.monad ?? "").trim().toLowerCase();
   assert.ok(ethereum.startsWith("0x"), "wallet/status missing ethereum address");
   assert.equal(monad, ethereum, "wallet/status should expose monad address matching ethereum");
+}
+
+function assertKiteAddressPresent(status) {
+  const ethereum = String(status?.addresses?.ethereum ?? status?.address ?? "").trim().toLowerCase();
+  const kite = String(status?.addresses?.kite ?? "").trim().toLowerCase();
+  assert.ok(ethereum.startsWith("0x"), "wallet/status missing ethereum address");
+  assert.equal(kite, ethereum, "wallet/status should expose kite address matching ethereum");
 }
 
 async function assertEvmTransactionSignForChain(client, sandbox, status, uid, chainKey) {
@@ -492,6 +499,8 @@ async function refreshWalletStatus(client) {
   const { data, error, response } = await client.GET("/api/v1/wallet/status", {});
   assert.equal(response.status, 200, `wallet/status failed: ${error ?? response.statusText}`);
   assert.ok(data, "expected wallet/status response body");
+  assertMonadAddressPresent(data);
+  assertKiteAddressPresent(data);
   return data;
 }
 
@@ -753,6 +762,7 @@ async function main() {
   const statusUid = String(initialStatus?.uid ?? "").trim();
   assert.ok(statusUid, "wallet/status did not include uid");
   assertMonadAddressPresent(initialStatus);
+  assertKiteAddressPresent(initialStatus);
   const envUid = String(process.env.CLAY_UID?.trim() || "").trim();
   if (envUid && envUid !== statusUid) {
     throw new Error(`CLAY_UID mismatch: env=${envUid} status=${statusUid}`);
@@ -778,6 +788,7 @@ async function main() {
     assert.ok(data, "expected JSON body");
     assert.ok("status" in data || "gateway_status" in data);
     assertMonadAddressPresent(data);
+    assertKiteAddressPresent(data);
   });
 
   await runStep("reject wrong bearer", async () => {
@@ -865,7 +876,7 @@ async function main() {
     assert.ok(priceProbe.data && typeof priceProbe.data === "object", "price cache should return JSON");
 
     if (currentStatus?.oracle_healthy) {
-      assertRequiredNativePrices(priceProbe.data, ["ethereum", "solana", "sui", "bitcoin", "monad"]);
+      assertRequiredNativePrices(priceProbe.data, ["ethereum", "solana", "sui", "bitcoin", "monad", "kite"]);
       const nativeEthereumPrice = getNativeEthereumPrice(priceProbe.data);
       assert.ok(nativeEthereumPrice > 0, "oracle healthy should expose native:ethereum price");
     }
