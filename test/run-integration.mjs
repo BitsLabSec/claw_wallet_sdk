@@ -535,7 +535,6 @@ function buildPolicyRestorePatch(policy) {
     max_amount_per_tx_usd: policy?.max_amount_per_tx_usd ?? 0,
     daily_limit_usd: policy?.daily_limit_usd ?? 0,
     daily_max_tx_count: policy?.daily_max_tx_count ?? 0,
-    whitelist_to: Array.isArray(policy?.whitelist_to) ? policy.whitelist_to : [],
     blacklist_to: Array.isArray(policy?.blacklist_to) ? policy.blacklist_to : [],
     unpriced_asset_policy: policy?.unpriced_asset_policy ?? "allow",
     allow_blind_sign: Boolean(policy?.allow_blind_sign),
@@ -559,12 +558,22 @@ async function fetchBindChallenge(uid) {
     },
   });
   const text = await response.text();
+  const parsed = text ? JSON.parse(text) : {};
+  if (
+    response.status === 409 &&
+    String(parsed?.reason ?? "").trim() === "wallet_already_bound" &&
+    String(parsed?.user_id ?? "").trim()
+  ) {
+    parsed.user_id = String(parsed.user_id).trim();
+    parsed.jwt = issueBackendTestJWT(parsed.user_id);
+    parsed.already_bound = true;
+    return parsed;
+  }
   assert.equal(
     response.status,
     200,
     `bind challenge failed ${response.status}: ${text.slice(0, 400)}`,
   );
-  const parsed = text ? JSON.parse(text) : {};
   assert.ok(parsed.message_hash_hex, "bind challenge did not include message_hash_hex");
   parsed.user_id = userID;
   parsed.jwt = token;
@@ -904,7 +913,6 @@ async function main() {
       await updateLocalPolicy({
         max_amount_per_tx_usd: 1000,
         daily_limit_usd: effectiveSpentUsd + 1000,
-        whitelist_to: [],
       });
 
       await assert.rejects(
@@ -935,15 +943,15 @@ async function main() {
   });
 
   await runStep("wallet bind integration", async () => {
-    if (currentStatus?.relay_user_bound === true && String(currentStatus?.relay_binding_status) === "valid") {
-      return;
-    }
-
     const challenge = await fetchBindChallenge(uid);
     relayAuth = {
       userID: challenge.user_id,
       jwt: challenge.jwt,
     };
+    if (challenge.already_bound === true) {
+      currentStatus = await refreshWalletStatus(client);
+      return;
+    }
     const bindResult = await sandbox.bindWallet({
       message_hash_hex: challenge.message_hash_hex,
     });
@@ -959,13 +967,8 @@ async function main() {
       throw new Error("relay auth context missing; run this coverage against a fresh bootstrap");
     }
 
-    const originalPolicy = await sandbox.getLocalPolicy();
     const backendOnlyAddress = `0x${randomHex(20)}`;
     const localOnlyAddress = `0x${randomHex(32)}`;
-
-    const existingBlacklist = Array.isArray(originalPolicy?.blacklist_to)
-      ? originalPolicy.blacklist_to
-      : [];
 
     await addBackendPolicyAddresses(uid, relayAuth, [
       {
@@ -975,6 +978,13 @@ async function main() {
         note: "backend-sync-proof",
       },
     ]);
+
+    currentStatus = await sandbox.reactivateWallet();
+    assert.equal(currentStatus?.status, "ready");
+    const syncedLocalPolicy = await waitForLocalPolicyAddress("ethereum", backendOnlyAddress, "blacklist_to");
+    const existingBlacklist = Array.isArray(syncedLocalPolicy?.blacklist_to)
+      ? syncedLocalPolicy.blacklist_to
+      : [];
 
     await updateLocalPolicy({
       blacklist_to: [
@@ -1001,10 +1011,10 @@ async function main() {
       "backend policy should preserve the backend-origin blacklist entry",
     );
 
-    const localPolicy = await waitForLocalPolicyAddress("ethereum", backendOnlyAddress, "blacklist_to");
+    const localPolicy = await waitForLocalPolicyAddress("sui", localOnlyAddress, "blacklist_to");
     assert.ok(
-      policyHasAddress(localPolicy?.blacklist_to, "sui", localOnlyAddress),
-      "local policy should preserve the sandbox-origin blacklist entry",
+      policyHasAddress(localPolicy?.blacklist_to, "ethereum", backendOnlyAddress),
+      "local policy should preserve the backend-origin blacklist entry",
     );
   });
 
