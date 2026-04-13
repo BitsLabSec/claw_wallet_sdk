@@ -183,6 +183,11 @@ const st = await sandbox.getStatus();
 assert.ok(st && (typeof st.status === "string" || st.gateway_status));
 assert.ok(st && typeof st.asset_refresh_state === "object");
 assertMonadAddressPresent(st);
+assert.equal(
+  String(st?.addresses?.tron ?? "").trim(),
+  "",
+  "wallet/status should omit tron while support is disabled",
+);
 
 if (ENABLE_SLOW_READS) {
   const assets = await sandbox.getAssets();
@@ -196,6 +201,18 @@ if (ENABLE_SLOW_READS) {
   await assertSlowChainRefreshBehavior(sandbox, st, "monad");
   await benchmarkBlockingChainRefresh(blockingSandbox, "0g");
   await benchmarkBlockingChainRefresh(blockingSandbox, "monad");
+}
+
+const kiteHistory = await sandbox.getHistory({ chain: "kite", limit: 5 });
+assert.ok(Array.isArray(kiteHistory), "kite history should be an array");
+for (const entry of kiteHistory) {
+  assert.equal(String(entry?.chain ?? "").trim().toLowerCase(), "kite");
+}
+
+const tempoHistory = await sandbox.getHistory({ chain: "tempo", limit: 5 });
+assert.ok(Array.isArray(tempoHistory), "tempo history should be an array");
+for (const entry of tempoHistory) {
+  assert.equal(String(entry?.chain ?? "").trim().toLowerCase(), "tempo");
 }
 
 const policyProbe = await client.GET("/api/v1/policy/local", {});

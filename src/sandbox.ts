@@ -46,6 +46,8 @@ const EVM_ADDRESS_FALLBACK_CHAINS = new Set([
   "linea",
   "zksync",
   "monad",
+  "kite",
+  "tempo",
 ]);
 
 export type ClawSignerConfig = {
