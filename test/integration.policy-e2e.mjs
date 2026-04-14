@@ -188,6 +188,7 @@ async function addPolicyAddresses(addresses, type = -1) {
     }),
     body: JSON.stringify({
       uid: requireString("CLAY_UID", ctx.uid),
+      user_id: requireString("CLAY_TEST_USER_ID", ctx.userID),
       addresses: addresses.map((item) => ({
         ...item,
         type,
@@ -206,6 +207,7 @@ async function deletePolicyAddresses(addresses, type = -1) {
     }),
     body: JSON.stringify({
       uid: requireString("CLAY_UID", ctx.uid),
+      user_id: requireString("CLAY_TEST_USER_ID", ctx.userID),
       type,
       addresses,
     }),

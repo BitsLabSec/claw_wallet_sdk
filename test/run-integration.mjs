@@ -680,6 +680,7 @@ async function addBackendPolicyAddresses(uid, relayAuth, addresses) {
     },
     body: JSON.stringify({
       uid,
+      user_id: relayAuth.userID,
       addresses,
     }),
   });
@@ -688,6 +689,30 @@ async function addBackendPolicyAddresses(uid, relayAuth, addresses) {
     response.status,
     200,
     `backend policy address add failed ${response.status}: ${text.slice(0, 400)}`,
+  );
+  return text ? JSON.parse(text) : {};
+}
+
+async function deleteBackendPolicyAddresses(uid, relayAuth, type, addresses) {
+  assert.ok(cfg.relayUrl, "CLAY_RELAY_URL is required for backend policy coverage");
+  const response = await timedFetch(`${cfg.relayUrl}/policy/addresses/del`, {
+    method: "POST",
+    headers: {
+      ...relayAuthHeaders(relayAuth),
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      uid,
+      user_id: relayAuth.userID,
+      type,
+      addresses,
+    }),
+  });
+  const text = await response.text();
+  assert.equal(
+    response.status,
+    200,
+    `backend policy address delete failed ${response.status}: ${text.slice(0, 400)}`,
   );
   return text ? JSON.parse(text) : {};
 }
@@ -732,6 +757,18 @@ async function waitForLocalPolicyAddress(chain, address, fieldName) {
   throw new Error(
     `local policy did not include ${fieldName} ${chain}:${address}; last=${JSON.stringify(lastPolicy)}`,
   );
+}
+
+async function waitForLocalPolicy(check, message) {
+  let lastPolicy = null;
+  for (let attempt = 0; attempt < 80; attempt += 1) {
+    lastPolicy = await sandbox.getLocalPolicy();
+    if (check(lastPolicy)) {
+      return lastPolicy;
+    }
+    await sleep(250);
+  }
+  throw new Error(`${message}; last=${JSON.stringify(lastPolicy)}`);
 }
 
 function issueBackendTestJWT(userID) {
@@ -1051,55 +1088,66 @@ async function main() {
       return;
     }
 
+    const originalPolicy = await sandbox.getLocalPolicy();
     const backendOnlyAddress = `0x${randomHex(20)}`;
     const localOnlyAddress = `0x${randomHex(32)}`;
 
-    await addBackendPolicyAddresses(uid, relayAuth, [
-      {
-        chain: "ethereum",
-        wallet_address: backendOnlyAddress,
-        type: 1,
-        note: "backend-sync-proof",
-      },
-    ]);
-
-    currentStatus = await sandbox.reactivateWallet();
-    assert.equal(currentStatus?.status, "ready");
-    const syncedLocalPolicy = await waitForLocalPolicyAddress("ethereum", backendOnlyAddress, "blacklist_to");
-    const existingBlacklist = Array.isArray(syncedLocalPolicy?.blacklist_to)
-      ? syncedLocalPolicy.blacklist_to
-      : [];
-
-    await updateLocalPolicy({
-      blacklist_to: [
-        ...existingBlacklist,
+    try {
+      await addBackendPolicyAddresses(uid, relayAuth, [
         {
-          chain: "sui",
-          address: localOnlyAddress,
-          note: "local-sync-proof",
+          chain: "ethereum",
+          wallet_address: backendOnlyAddress,
+          type: 1,
+          note: "backend-sync-proof",
         },
-      ],
-    });
-    currentStatus = await sandbox.reactivateWallet();
-    assert.equal(currentStatus?.status, "ready");
+      ]);
 
-    const backendPolicy = await waitForBackendPolicyAddress(
-      uid,
-      relayAuth,
-      "sui",
-      localOnlyAddress,
-      "blacklisted_addresses",
-    );
-    assert.ok(
-      policyHasAddress(backendPolicy?.blacklisted_addresses, "ethereum", backendOnlyAddress),
-      "backend policy should preserve the backend-origin blacklist entry",
-    );
+      currentStatus = await sandbox.reactivateWallet();
+      assert.equal(currentStatus?.status, "ready");
+      const syncedLocalPolicy = await waitForLocalPolicyAddress("ethereum", backendOnlyAddress, "blacklist_to");
+      const existingBlacklist = Array.isArray(syncedLocalPolicy?.blacklist_to)
+        ? syncedLocalPolicy.blacklist_to
+        : [];
 
-    const localPolicy = await waitForLocalPolicyAddress("sui", localOnlyAddress, "blacklist_to");
-    assert.ok(
-      policyHasAddress(localPolicy?.blacklist_to, "ethereum", backendOnlyAddress),
-      "local policy should preserve the backend-origin blacklist entry",
-    );
+      await updateLocalPolicy({
+        blacklist_to: [
+          ...existingBlacklist,
+          {
+            chain: "sui",
+            address: localOnlyAddress,
+            note: "local-sync-proof",
+          },
+        ],
+      });
+      currentStatus = await sandbox.reactivateWallet();
+      assert.equal(currentStatus?.status, "ready");
+
+      const backendPolicy = await waitForBackendPolicyAddress(
+        uid,
+        relayAuth,
+        "sui",
+        localOnlyAddress,
+        "blacklisted_addresses",
+      );
+      assert.ok(
+        policyHasAddress(backendPolicy?.blacklisted_addresses, "ethereum", backendOnlyAddress),
+        "backend policy should preserve the backend-origin blacklist entry",
+      );
+
+      const localPolicy = await waitForLocalPolicyAddress("sui", localOnlyAddress, "blacklist_to");
+      assert.ok(
+        policyHasAddress(localPolicy?.blacklist_to, "ethereum", backendOnlyAddress),
+        "local policy should preserve the backend-origin blacklist entry",
+      );
+    } finally {
+      await deleteBackendPolicyAddresses(uid, relayAuth, 1, [
+        { chain: "ethereum", wallet_address: backendOnlyAddress },
+        { chain: "sui", wallet_address: localOnlyAddress },
+      ]);
+      await updateLocalPolicy(buildPolicyRestorePatch(originalPolicy));
+      currentStatus = await sandbox.reactivateWallet();
+      assert.equal(currentStatus?.status, "ready");
+    }
   });
 
   await runStep("viem RPC proxy eth_blockNumber", async () => {
@@ -1521,6 +1569,10 @@ async function main() {
         daily_max_tx_count: 0,
         daily_limit_usd: 0,
       });
+      await waitForLocalPolicy(
+        (policy) => !policyHasAddress(policy?.blacklist_to, "ethereum", expectedAddress),
+        `local policy still blacklisted ${expectedAddress} after clearing blacklist`,
+      );
 
       const allowedTx = await signEthereumTransaction(signer, expectedAddress, 0n);
       assert.equal(allowedTx.to?.toLowerCase(), expectedAddress.toLowerCase());
@@ -1530,6 +1582,10 @@ async function main() {
         daily_max_tx_count: 0,
         daily_limit_usd: 0,
       });
+      await waitForLocalPolicy(
+        (policy) => policyHasAddress(policy?.blacklist_to, "ethereum", expectedAddress),
+        `local policy did not blacklist ${expectedAddress}`,
+      );
 
       await assert.rejects(
         () => signEthereumTransaction(signer, expectedAddress, 0n),
@@ -1537,6 +1593,10 @@ async function main() {
       );
     } finally {
       await updateLocalPolicy(buildPolicyRestorePatch(originalPolicy));
+      await waitForLocalPolicy(
+        (policy) => !policyHasAddress(policy?.blacklist_to, "ethereum", expectedAddress),
+        `local policy restore still blacklisted ${expectedAddress}`,
+      );
       currentStatus = await refreshWalletStatus(client);
     }
   });
@@ -1569,6 +1629,13 @@ async function main() {
         daily_limit_usd: 0,
         blacklist_to: [],
       });
+      await waitForLocalPolicy(
+        (policy) => (
+          !policyHasAddress(policy?.blacklist_to, "ethereum", expectedAddress)
+          && Number(policy?.daily_max_tx_count ?? 0) === effectiveTxCount + 1
+        ),
+        `local policy daily tx count did not settle for ${expectedAddress}`,
+      );
 
       await signEthereumTransaction(signer, expectedAddress, 0n);
       await assert.rejects(
@@ -1577,6 +1644,10 @@ async function main() {
       );
     } finally {
       await updateLocalPolicy(buildPolicyRestorePatch(originalPolicy));
+      await waitForLocalPolicy(
+        (policy) => Number(policy?.daily_max_tx_count ?? 0) === Number(originalPolicy?.daily_max_tx_count ?? 0),
+        "local policy daily tx count restore did not settle",
+      );
       currentStatus = await refreshWalletStatus(client);
     }
   });
@@ -1614,6 +1685,13 @@ async function main() {
         daily_limit_usd: effectiveSpentUsd + targetIntentUsd * 1.5,
         blacklist_to: [],
       });
+      await waitForLocalPolicy(
+        (policy) => (
+          !policyHasAddress(policy?.blacklist_to, "ethereum", expectedAddress)
+          && Number(policy?.daily_limit_usd ?? 0) === effectiveSpentUsd + targetIntentUsd * 1.5
+        ),
+        `local policy daily USD limit did not settle for ${expectedAddress}`,
+      );
 
       await signEthereumTransaction(signer, expectedAddress, valueWei);
       await assert.rejects(
@@ -1622,6 +1700,10 @@ async function main() {
       );
     } finally {
       await updateLocalPolicy(buildPolicyRestorePatch(originalPolicy));
+      await waitForLocalPolicy(
+        (policy) => Number(policy?.daily_limit_usd ?? 0) === Number(originalPolicy?.daily_limit_usd ?? 0),
+        "local policy daily USD restore did not settle",
+      );
       currentStatus = await refreshWalletStatus(client);
     }
   });
