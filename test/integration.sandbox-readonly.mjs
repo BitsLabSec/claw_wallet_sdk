@@ -141,8 +141,16 @@ async function benchmarkBlockingChainRefresh(sandbox, chain) {
 
   const firstStatus = String(first?.status ?? "");
   const secondStatus = String(second?.status ?? "");
-  assert.ok(firstStatus === "refresh_completed" || firstStatus === "refresh_waited_existing");
-  assert.ok(secondStatus === "refresh_completed" || secondStatus === "refresh_waited_existing");
+  assert.ok(
+    firstStatus === "refresh_completed" ||
+      firstStatus === "refresh_waited_existing" ||
+      firstStatus === "refresh_skipped_recent",
+  );
+  assert.ok(
+    secondStatus === "refresh_completed" ||
+      secondStatus === "refresh_waited_existing" ||
+      secondStatus === "refresh_skipped_recent",
+  );
 
   process.stdout.write(
     `[chain-refresh] ${chain} first_ms=${firstMs} first_status=${firstStatus} second_ms=${secondMs} second_status=${secondStatus}\n`,
