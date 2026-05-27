@@ -2,8 +2,17 @@ import { Buffer } from "buffer";
 
 import { PublicKey, Transaction, VersionedTransaction } from "@solana/web3.js";
 
-import { bytesToHex, hexToBytes } from "./encoding.js";
-import { ClawSandboxClient, type ClawSignerConfig } from "./sandbox.js";
+import { bytesToHex, hexToBytes } from "../util/encoding.js";
+import { ClawSandboxClient, type ClawSignerConfig } from "../sandbox.js";
+import { type ClawInvokeResult } from "../util/operation-utils.js";
+import {
+  invokeSolana,
+  swapSolana,
+  type ClawSolanaInvokeRequest,
+  type ClawSolanaSwapRequest,
+  type ClawSolanaSwapResponse,
+} from "./solana-ecology.js";
+export type { ClawSolanaInvokeRequest, ClawSolanaSwapRequest, ClawSolanaSwapResponse } from "./solana-ecology.js";
 
 export type ClawSolanaTransaction = Transaction | VersionedTransaction;
 
@@ -82,6 +91,14 @@ export class ClawSolanaSigner {
     }
 
     return hexToBytes(res.signature_hex);
+  }
+
+  async invoke(request: ClawSolanaInvokeRequest): Promise<ClawInvokeResult> {
+    return await invokeSolana(this.client, request);
+  }
+
+  async swap(request: ClawSolanaSwapRequest): Promise<ClawSolanaSwapResponse> {
+    return await swapSolana(this.client, request);
   }
 
   toKeyPairSigner() {

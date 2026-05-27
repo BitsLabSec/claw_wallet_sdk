@@ -20,7 +20,16 @@ import {
   clawChainToChainId,
   resolveClawEvmChain,
 } from "./evm-chain.js";
-import { ClawSandboxClient, type ClawSignerConfig } from "./sandbox.js";
+import { ClawSandboxClient, type ClawSignerConfig } from "../sandbox.js";
+import { type ClawInvokeResult } from "../util/operation-utils.js";
+import {
+  invokeEvm,
+  swapEvm,
+  type ClawEvmInvokeRequest,
+  type ClawEvmSwapRequest,
+  type ClawEvmSwapResponse,
+} from "./evm-ecology.js";
+export type { ClawEvmInvokeRequest, ClawEvmSwapRequest, ClawEvmSwapResponse } from "./evm-ecology.js";
 
 function normalizeBaseUrl(url: string): string {
   return url.trim().replace(/\/+$/, "");
@@ -226,5 +235,13 @@ export class ClawEthersSigner extends AbstractSigner {
     delete populated.from;
     const signedRawTx = await this.signTransaction(populated);
     return await this.provider.broadcastTransaction(signedRawTx);
+  }
+
+  async invoke(request: ClawEvmInvokeRequest): Promise<ClawInvokeResult> {
+    return await invokeEvm(this.client, request);
+  }
+
+  async swap(request: ClawEvmSwapRequest): Promise<ClawEvmSwapResponse> {
+    return await swapEvm(this.client, request);
   }
 }

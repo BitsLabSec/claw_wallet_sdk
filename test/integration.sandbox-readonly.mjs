@@ -148,18 +148,15 @@ async function benchmarkBlockingChainRefresh(sandbox, chain) {
 
   const firstStatus = String(first?.status ?? "");
   const secondStatus = String(second?.status ?? "");
-  const allowedStatuses = new Set([
-    "refresh_completed",
-    "refresh_waited_existing",
-    "refresh_skipped_recent",
-  ]);
   assert.ok(
-    allowedStatuses.has(firstStatus),
-    `${chain} first refresh returned unexpected status: ${firstStatus}`,
+    firstStatus === "refresh_completed" ||
+      firstStatus === "refresh_waited_existing" ||
+      firstStatus === "refresh_skipped_recent",
   );
   assert.ok(
-    allowedStatuses.has(secondStatus),
-    `${chain} second refresh returned unexpected status: ${secondStatus}`,
+    secondStatus === "refresh_completed" ||
+      secondStatus === "refresh_waited_existing" ||
+      secondStatus === "refresh_skipped_recent",
   );
 
   process.stdout.write(
@@ -202,7 +199,11 @@ const st = await sandbox.getStatus();
 assert.ok(st && (typeof st.status === "string" || st.gateway_status));
 assert.ok(st && typeof st.asset_refresh_state === "object");
 assertMonadAddressPresent(st);
-assertKiteAddressPresent(st);
+assert.equal(
+  String(st?.addresses?.tron ?? "").trim(),
+  "",
+  "wallet/status should omit tron while support is disabled",
+);
 
 if (ENABLE_SLOW_READS) {
   const assets = await sandbox.getAssets();
@@ -218,6 +219,18 @@ if (ENABLE_SLOW_READS) {
   await benchmarkBlockingChainRefresh(blockingSandbox, "0g");
   await benchmarkBlockingChainRefresh(blockingSandbox, "monad");
   await benchmarkBlockingChainRefresh(blockingSandbox, "kite");
+}
+
+const kiteHistory = await sandbox.getHistory({ chain: "kite", limit: 5 });
+assert.ok(Array.isArray(kiteHistory), "kite history should be an array");
+for (const entry of kiteHistory) {
+  assert.equal(String(entry?.chain ?? "").trim().toLowerCase(), "kite");
+}
+
+const tempoHistory = await sandbox.getHistory({ chain: "tempo", limit: 5 });
+assert.ok(Array.isArray(tempoHistory), "tempo history should be an array");
+for (const entry of tempoHistory) {
+  assert.equal(String(entry?.chain ?? "").trim().toLowerCase(), "tempo");
 }
 
 const policyProbe = await client.GET("/api/v1/policy/local", {});

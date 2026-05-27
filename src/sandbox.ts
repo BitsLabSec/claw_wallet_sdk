@@ -23,16 +23,7 @@ export type ClawPolicyAddressNote = {
   note?: string;
   chain?: string;
 };
-export type ClawPolicyUpdatePatch = {
-  max_amount_per_tx_usd?: number;
-  daily_limit_usd?: number;
-  daily_max_tx_count?: number;
-  whitelist_to?: ClawPolicyAddressNote[];
-  blacklist_to?: ClawPolicyAddressNote[];
-  unpriced_asset_policy?: string;
-  allow_blind_sign?: boolean;
-  strict_plain_text?: boolean;
-};
+export type ClawPolicyUpdatePatch = components["schemas"]["LocalPolicyUpdateRequest"];
 
 const EVM_ADDRESS_FALLBACK_CHAINS = new Set([
   "ethereum",
@@ -47,6 +38,8 @@ const EVM_ADDRESS_FALLBACK_CHAINS = new Set([
   "linea",
   "zksync",
   "monad",
+  "kite",
+  "tempo",
 ]);
 
 export type ClawSignerConfig = {
@@ -70,22 +63,39 @@ async function readJsonError(response: Response): Promise<string> {
   }
 }
 
+function normalizeSandboxUrl(url: string): string {
+  return url.trim().replace(/\/+$/, "");
+}
+
 export class ClawSandboxClient {
   readonly config: ClawSignerConfig;
 
   constructor(config: ClawSignerConfig) {
     this.config = {
       ...config,
-      sandboxUrl: config.sandboxUrl.replace(/\/+$/, ""),
+      sandboxUrl: normalizeSandboxUrl(config.sandboxUrl),
     };
   }
 
-  private get client() {
+  get client() {
     return createClawWalletClient({
       baseUrl: this.config.sandboxUrl,
       agentToken: this.config.sandboxToken,
       fetch: this.config.fetch,
     });
+  }
+
+  async requestExternalJson<T>(url: string): Promise<T> {
+    const response = await (this.config.fetch ?? fetch)(url, {
+      method: "GET",
+      headers: { Accept: "application/json" },
+    });
+    if (!response.ok) {
+      throw new Error(
+        `Claw external request failed (${response.status} GET ${url}): ${await readJsonError(response)}`,
+      );
+    }
+    return await response.json() as T;
   }
 
   async sign(request: Omit<ClawSignRequest, "uid">): Promise<ClawSignResult> {
@@ -202,32 +212,16 @@ export class ClawSandboxClient {
   }
 
   async updateLocalPolicy(patch: ClawPolicyUpdatePatch): Promise<ClawPolicy> {
-    const url = `${this.config.sandboxUrl}/api/v1/policy/update`;
-    const headers = new Headers({
-      Accept: "application/json",
-      "Content-Type": "application/json",
+    const { data, error, response } = await this.client.POST("/api/v1/policy/update", {
+      body: patch,
     });
-    const token = this.config.sandboxToken.trim();
-    if (token) {
-      headers.set("Authorization", `Bearer ${token}`);
+    if (!response.ok || !data) {
+      throw new Error(`Failed to update local policy (${response.status}): ${errorText(error, response)}`);
     }
-
-    const response = await (this.config.fetch ?? fetch)(url, {
-      method: "POST",
-      headers,
-      body: JSON.stringify(patch),
-    });
-    if (!response.ok) {
-      throw new Error(
-        `Failed to update local policy (${response.status}): ${await readJsonError(response)}`,
-      );
+    if (data.status !== "policy_updated") {
+      throw new Error(`Unexpected policy update response: ${JSON.stringify(data)}`);
     }
-
-    const parsed = (await response.json()) as Record<string, unknown>;
-    if (parsed?.status !== "policy_updated") {
-      throw new Error(`Unexpected policy update response: ${JSON.stringify(parsed)}`);
-    }
-    return (parsed.policy ?? parsed) as ClawPolicy;
+    return data.policy;
   }
 
   async getRequiredAddress(chain: string): Promise<string> {
@@ -262,6 +256,10 @@ export class ClawSandboxClient {
       throw new Error(`Failed to broadcast transaction (${response.status}): ${errorText(error, response)}`);
     }
     return data;
+  }
+
+  async broadcastTransaction(request: ClawBroadcastRequest): Promise<ClawBroadcastResponse> {
+    return this.broadcast(request);
   }
 
   async transfer(request: ClawTransferRequest): Promise<ClawTransferResult> {

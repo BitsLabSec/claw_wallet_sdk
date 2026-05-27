@@ -8,6 +8,7 @@ const CLAW_EVM_CHAIN_ID_ENTRIES = [
   ["kite", 2366n],
   ["zksync", 324n],
   ["base", 8453n],
+  ["tempo", 42431n],
   ["arbitrum", 42161n],
   ["avalanche", 43114n],
   ["linea", 59144n],

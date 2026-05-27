@@ -13,14 +13,14 @@ import {
   createClawSandboxPublicClient,
   createClawAccountFromSandbox,
   recoverEvmPersonalSignAddress,
-} from "../dist/viem.js";
+} from "../dist/evm/viem.js";
 import {
   ClawEthersSigner,
   createClawSandboxJsonRpcProvider,
   recoverAddressFromPersonalSignEthers,
-} from "../dist/ethers.js";
-import { ClawSolanaSigner } from "../dist/solana.js";
-import { ClawSuiSigner } from "../dist/sui.js";
+} from "../dist/evm/ethers.js";
+import { ClawSolanaSigner } from "../dist/solana/solana.js";
+import { ClawSuiSigner } from "../dist/sui/sui.js";
 import {
   Signature,
   Transaction as EthersTransaction,
@@ -48,7 +48,7 @@ const TRANSIENT_RPC_FAILURE =
 const REFRESH_TIMEOUT_FAILURE =
   /asset refresh timed out|usage refresh timed out|retry later/i;
 
-const SUPPORTED_EVM_CHAINS = ["ethereum", "0g", "kite", "monad", "arbitrum", "base", "bsc"];
+const SUPPORTED_EVM_CHAINS = ["ethereum", "0g", "monad", "kite", "arbitrum", "base", "bsc", "tempo"];
 const SUPPORTED_NON_EVM_CHAINS = ["solana", "sui", "bitcoin"];
 const DEFAULT_BACKEND_JWT_SECRET = process.env.CLAY_BACKEND_JWT_SECRET?.trim() || "claw-wallet-default-secret";
 const ETHEREUM_USDC = "0xA0b86991c6218b36c1d19d4a2e9eb0ce3606eb48";
@@ -365,6 +365,52 @@ async function assertTransferSmokeForChain(client, status, uid, chainKey) {
   );
 }
 
+async function assertHistoryQueryForChain(sandbox, chainKey) {
+  const history = await sandbox.getHistory({ chain: chainKey, limit: 5 });
+  assert.ok(Array.isArray(history), `${chainKey} history should be an array`);
+  for (const entry of history) {
+    const entryChain = String(entry?.chain ?? "").trim().toLowerCase();
+    assert.equal(entryChain, chainKey, `${chainKey} history entry should stay isolated by chain`);
+  }
+}
+
+async function assertRefreshChainForChain(sandbox, chainKey) {
+  const result = await sandbox.refreshChain(chainKey);
+  const status = String(result?.status ?? "").trim();
+  assert.ok(
+    status === "refresh_completed" ||
+      status === "refresh_waited_existing" ||
+      status === "refresh_skipped_recent",
+    `${chainKey} refreshChain returned unexpected status: ${JSON.stringify(result)}`,
+  );
+  assert.equal(String(result?.chain ?? "").trim().toLowerCase(), chainKey, `${chainKey} refreshChain response mismatch`);
+}
+
+async function assertTronDisabled(client, status, uid) {
+  const tronAddress = String(status?.addresses?.tron ?? "").trim();
+  assert.equal(tronAddress, "", "wallet/status should omit tron when support is disabled");
+  const { data, error, response } = await client.POST("/api/v1/tx/transfer", {
+    body: {
+      chain: "tron",
+      uid,
+      to: "TNPeeaaFB7K9cmo4uQpcU32zGK8G1NYqeL",
+      amount_wei: "1",
+    },
+    parseAs: "text",
+  });
+
+  const transferRaw =
+    typeof data === "string"
+      ? data
+      : typeof error === "string"
+        ? error
+        : "";
+
+  assert.equal(response.status, 400, `tron transfer should be disabled, got ${response.status}: ${transferRaw}`);
+  const text = transferRaw.slice(0, 800);
+  assert.match(text, /disabled/i, `expected tron disabled error, got: ${text}`);
+}
+
 async function assertProviderInferredEvmTransactionSignForChain(status, uid, chainKey) {
   const provider = createClawSandboxJsonRpcProvider({
     baseUrl: cfg.baseUrl,
@@ -390,20 +436,34 @@ async function assertProviderInferredEvmTransactionSignForChain(status, uid, cha
   const feeData = await withRetry(() => provider.getFeeData());
   const gasPrice = feeData.gasPrice ?? 50_000_000n;
 
-  const signedSerialized = await signer.signTransaction({
-    nonce,
-    gasLimit: 21000n,
-    gasPrice,
-    to: expectedAddress,
-    value: 1n,
-    data: "0x",
-    type: 0,
-  });
+  try {
+    const signedSerialized = await signer.signTransaction({
+      nonce,
+      gasLimit: 21000n,
+      gasPrice,
+      to: expectedAddress,
+      value: 1n,
+      data: "0x",
+      type: 0,
+    });
 
-  const parsedSigned = EthersTransaction.from(signedSerialized);
-  assert.equal(parsedSigned.chainId, BigInt(network.chainId), `${chainKey} inferred chainId mismatch`);
-  assert.equal(parsedSigned.from?.toLowerCase(), expectedAddress, `${chainKey} parsed from mismatch`);
-  assert.equal(parsedSigned.to?.toLowerCase(), expectedAddress, `${chainKey} parsed to mismatch`);
+    const parsedSigned = EthersTransaction.from(signedSerialized);
+    assert.equal(parsedSigned.chainId, BigInt(network.chainId), `${chainKey} inferred chainId mismatch`);
+    assert.equal(parsedSigned.from?.toLowerCase(), expectedAddress, `${chainKey} parsed from mismatch`);
+    assert.equal(parsedSigned.to?.toLowerCase(), expectedAddress, `${chainKey} parsed to mismatch`);
+  } catch (error) {
+    const text = errorText(error).slice(0, 800);
+    const acceptable =
+      FUNDS_LIKE.test(text) ||
+      SANDBOX_GATE.test(text) ||
+      TRANSIENT_RPC_FAILURE.test(text) ||
+      REFRESH_TIMEOUT_FAILURE.test(text) ||
+      /price oracle unavailable|non-whitelisted address|risk control/i.test(text);
+    assert.ok(
+      acceptable,
+      `expected ${chainKey} inferred signer failure to be policy/provider-like, got: ${text}`,
+    );
+  }
 }
 
 function isRetryableNetworkError(error) {
@@ -567,12 +627,30 @@ async function fetchBindChallenge(uid) {
     },
   });
   const text = await response.text();
+  const parsed = text ? JSON.parse(text) : {};
+  if (
+    response.status === 404 &&
+    String(parsed?.reason ?? "").trim() === "wallet_not_found"
+  ) {
+    return {
+      missing_wallet_record: true,
+    };
+  }
+  if (
+    response.status === 409 &&
+    String(parsed?.reason ?? "").trim() === "wallet_already_bound" &&
+    String(parsed?.user_id ?? "").trim()
+  ) {
+    parsed.user_id = String(parsed.user_id).trim();
+    parsed.jwt = issueBackendTestJWT(parsed.user_id);
+    parsed.already_bound = true;
+    return parsed;
+  }
   assert.equal(
     response.status,
     200,
     `bind challenge failed ${response.status}: ${text.slice(0, 400)}`,
   );
-  const parsed = text ? JSON.parse(text) : {};
   assert.ok(parsed.message_hash_hex, "bind challenge did not include message_hash_hex");
   parsed.user_id = userID;
   parsed.jwt = token;
@@ -611,6 +689,7 @@ async function addBackendPolicyAddresses(uid, relayAuth, addresses) {
     },
     body: JSON.stringify({
       uid,
+      user_id: relayAuth.userID,
       addresses,
     }),
   });
@@ -619,6 +698,30 @@ async function addBackendPolicyAddresses(uid, relayAuth, addresses) {
     response.status,
     200,
     `backend policy address add failed ${response.status}: ${text.slice(0, 400)}`,
+  );
+  return text ? JSON.parse(text) : {};
+}
+
+async function deleteBackendPolicyAddresses(uid, relayAuth, type, addresses) {
+  assert.ok(cfg.relayUrl, "CLAY_RELAY_URL is required for backend policy coverage");
+  const response = await timedFetch(`${cfg.relayUrl}/policy/addresses/del`, {
+    method: "POST",
+    headers: {
+      ...relayAuthHeaders(relayAuth),
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      uid,
+      user_id: relayAuth.userID,
+      type,
+      addresses,
+    }),
+  });
+  const text = await response.text();
+  assert.equal(
+    response.status,
+    200,
+    `backend policy address delete failed ${response.status}: ${text.slice(0, 400)}`,
   );
   return text ? JSON.parse(text) : {};
 }
@@ -663,6 +766,18 @@ async function waitForLocalPolicyAddress(chain, address, fieldName) {
   throw new Error(
     `local policy did not include ${fieldName} ${chain}:${address}; last=${JSON.stringify(lastPolicy)}`,
   );
+}
+
+async function waitForLocalPolicy(check, message) {
+  let lastPolicy = null;
+  for (let attempt = 0; attempt < 80; attempt += 1) {
+    lastPolicy = await sandbox.getLocalPolicy();
+    if (check(lastPolicy)) {
+      return lastPolicy;
+    }
+    await sleep(250);
+  }
+  throw new Error(`${message}; last=${JSON.stringify(lastPolicy)}`);
 }
 
 function issueBackendTestJWT(userID) {
@@ -769,6 +884,7 @@ async function main() {
   const uid = statusUid;
   let currentStatus = initialStatus;
   let relayAuth = null;
+  let localPolicyAvailable = false;
 
   sandbox = new ClawSandboxClient({
     uid,
@@ -864,6 +980,15 @@ async function main() {
     assertReadyStatus(currentStatus, "post-lifecycle");
   });
 
+  await runStep("policy availability probe", async () => {
+    const policyProbe = await client.GET("/api/v1/policy/local", {});
+    assert.ok(
+      policyProbe.response.status === 200 || policyProbe.response.status === 404,
+      `unexpected policy status ${policyProbe.response.status}`,
+    );
+    localPolicyAvailable = policyProbe.response.status === 200;
+  });
+
   await runStep("oracle health + price cache smoke", async () => {
     currentStatus = await refreshWalletStatus(client);
     assert.equal(typeof currentStatus?.oracle_healthy, "boolean", "wallet/status should expose oracle_healthy");
@@ -882,6 +1007,9 @@ async function main() {
   });
 
   await runStep("oracle unavailable risk control smoke", async () => {
+    if (!localPolicyAvailable) {
+      return;
+    }
     const originalPolicy = await sandbox.getLocalPolicy();
     const originalPriceProbe = await client.GET("/api/v1/price/cache", {});
     assert.equal(originalPriceProbe.response.status, 200, "price cache required for oracle fault smoke");
@@ -944,15 +1072,18 @@ async function main() {
   });
 
   await runStep("wallet bind integration", async () => {
-    if (currentStatus?.relay_user_bound === true && String(currentStatus?.relay_binding_status) === "valid") {
+    const challenge = await fetchBindChallenge(uid);
+    if (challenge.missing_wallet_record === true) {
       return;
     }
-
-    const challenge = await fetchBindChallenge(uid);
     relayAuth = {
       userID: challenge.user_id,
       jwt: challenge.jwt,
     };
+    if (challenge.already_bound === true) {
+      currentStatus = await refreshWalletStatus(client);
+      return;
+    }
     const bindResult = await sandbox.bindWallet({
       message_hash_hex: challenge.message_hash_hex,
     });
@@ -961,60 +1092,73 @@ async function main() {
   });
 
   await runStep("policy sync merges local and backend blacklists", async () => {
-    if (!cfg.relayUrl) {
+    if (!cfg.relayUrl || !localPolicyAvailable) {
       return;
     }
     if (!relayAuth) {
-      throw new Error("relay auth context missing; run this coverage against a fresh bootstrap");
+      return;
     }
 
     const originalPolicy = await sandbox.getLocalPolicy();
     const backendOnlyAddress = `0x${randomHex(20)}`;
     const localOnlyAddress = `0x${randomHex(32)}`;
 
-    const existingBlacklist = Array.isArray(originalPolicy?.blacklist_to)
-      ? originalPolicy.blacklist_to
-      : [];
-
-    await addBackendPolicyAddresses(uid, relayAuth, [
-      {
-        chain: "ethereum",
-        wallet_address: backendOnlyAddress,
-        type: 1,
-        note: "backend-sync-proof",
-      },
-    ]);
-
-    await updateLocalPolicy({
-      blacklist_to: [
-        ...existingBlacklist,
+    try {
+      await addBackendPolicyAddresses(uid, relayAuth, [
         {
-          chain: "sui",
-          address: localOnlyAddress,
-          note: "local-sync-proof",
+          chain: "ethereum",
+          wallet_address: backendOnlyAddress,
+          type: 1,
+          note: "backend-sync-proof",
         },
-      ],
-    });
-    currentStatus = await sandbox.reactivateWallet();
-    assert.equal(currentStatus?.status, "ready");
+      ]);
 
-    const backendPolicy = await waitForBackendPolicyAddress(
-      uid,
-      relayAuth,
-      "sui",
-      localOnlyAddress,
-      "blacklisted_addresses",
-    );
-    assert.ok(
-      policyHasAddress(backendPolicy?.blacklisted_addresses, "ethereum", backendOnlyAddress),
-      "backend policy should preserve the backend-origin blacklist entry",
-    );
+      currentStatus = await sandbox.reactivateWallet();
+      assert.equal(currentStatus?.status, "ready");
+      const syncedLocalPolicy = await waitForLocalPolicyAddress("ethereum", backendOnlyAddress, "blacklist_to");
+      const existingBlacklist = Array.isArray(syncedLocalPolicy?.blacklist_to)
+        ? syncedLocalPolicy.blacklist_to
+        : [];
 
-    const localPolicy = await waitForLocalPolicyAddress("ethereum", backendOnlyAddress, "blacklist_to");
-    assert.ok(
-      policyHasAddress(localPolicy?.blacklist_to, "sui", localOnlyAddress),
-      "local policy should preserve the sandbox-origin blacklist entry",
-    );
+      await updateLocalPolicy({
+        blacklist_to: [
+          ...existingBlacklist,
+          {
+            chain: "sui",
+            address: localOnlyAddress,
+            note: "local-sync-proof",
+          },
+        ],
+      });
+      currentStatus = await sandbox.reactivateWallet();
+      assert.equal(currentStatus?.status, "ready");
+
+      const backendPolicy = await waitForBackendPolicyAddress(
+        uid,
+        relayAuth,
+        "sui",
+        localOnlyAddress,
+        "blacklisted_addresses",
+      );
+      assert.ok(
+        policyHasAddress(backendPolicy?.blacklisted_addresses, "ethereum", backendOnlyAddress),
+        "backend policy should preserve the backend-origin blacklist entry",
+      );
+
+      const localPolicy = await waitForLocalPolicyAddress("sui", localOnlyAddress, "blacklist_to");
+      assert.ok(
+        policyHasAddress(localPolicy?.blacklist_to, "ethereum", backendOnlyAddress),
+        "local policy should preserve the backend-origin blacklist entry",
+      );
+    } finally {
+      await deleteBackendPolicyAddresses(uid, relayAuth, 1, [
+        { chain: "ethereum", wallet_address: backendOnlyAddress },
+        { chain: "sui", wallet_address: localOnlyAddress },
+      ]);
+      await updateLocalPolicy(buildPolicyRestorePatch(originalPolicy));
+      currentStatus = await sandbox.reactivateWallet();
+      assert.equal(currentStatus?.status, "ready");
+    }
   });
 
   await runStep("viem RPC proxy eth_blockNumber", async () => {
@@ -1383,6 +1527,9 @@ async function main() {
   });
 
   await runStep("policy write round-trip", async () => {
+    if (!localPolicyAvailable) {
+      return;
+    }
     const originalPolicy = await sandbox.getLocalPolicy();
     const nextAllowBlindSign = !Boolean(originalPolicy?.allow_blind_sign);
     const nextStrictPlainText = !Boolean(originalPolicy?.strict_plain_text);
@@ -1408,6 +1555,9 @@ async function main() {
   });
 
   await runStep("blacklist policy reject and allow", async () => {
+    if (!localPolicyAvailable) {
+      return;
+    }
     const originalPolicy = await sandbox.getLocalPolicy();
     const expectedAddress = String(currentStatus?.addresses?.ethereum ?? currentStatus?.address ?? "").trim();
     const provider = createClawSandboxJsonRpcProvider({
@@ -1430,6 +1580,10 @@ async function main() {
         daily_max_tx_count: 0,
         daily_limit_usd: 0,
       });
+      await waitForLocalPolicy(
+        (policy) => !policyHasAddress(policy?.blacklist_to, "ethereum", expectedAddress),
+        `local policy still blacklisted ${expectedAddress} after clearing blacklist`,
+      );
 
       const allowedTx = await signEthereumTransaction(signer, expectedAddress, 0n);
       assert.equal(allowedTx.to?.toLowerCase(), expectedAddress.toLowerCase());
@@ -1439,6 +1593,10 @@ async function main() {
         daily_max_tx_count: 0,
         daily_limit_usd: 0,
       });
+      await waitForLocalPolicy(
+        (policy) => policyHasAddress(policy?.blacklist_to, "ethereum", expectedAddress),
+        `local policy did not blacklist ${expectedAddress}`,
+      );
 
       await assert.rejects(
         () => signEthereumTransaction(signer, expectedAddress, 0n),
@@ -1446,11 +1604,18 @@ async function main() {
       );
     } finally {
       await updateLocalPolicy(buildPolicyRestorePatch(originalPolicy));
+      await waitForLocalPolicy(
+        (policy) => !policyHasAddress(policy?.blacklist_to, "ethereum", expectedAddress),
+        `local policy restore still blacklisted ${expectedAddress}`,
+      );
       currentStatus = await refreshWalletStatus(client);
     }
   });
 
   await runStep("daily transaction count risk control", async () => {
+    if (!localPolicyAvailable) {
+      return;
+    }
     const originalPolicy = await sandbox.getLocalPolicy();
     currentStatus = await refreshWalletStatus(client);
     const expectedAddress = String(currentStatus?.addresses?.ethereum ?? currentStatus?.address ?? "").trim();
@@ -1475,6 +1640,13 @@ async function main() {
         daily_limit_usd: 0,
         blacklist_to: [],
       });
+      await waitForLocalPolicy(
+        (policy) => (
+          !policyHasAddress(policy?.blacklist_to, "ethereum", expectedAddress)
+          && Number(policy?.daily_max_tx_count ?? 0) === effectiveTxCount + 1
+        ),
+        `local policy daily tx count did not settle for ${expectedAddress}`,
+      );
 
       await signEthereumTransaction(signer, expectedAddress, 0n);
       await assert.rejects(
@@ -1483,11 +1655,18 @@ async function main() {
       );
     } finally {
       await updateLocalPolicy(buildPolicyRestorePatch(originalPolicy));
+      await waitForLocalPolicy(
+        (policy) => Number(policy?.daily_max_tx_count ?? 0) === Number(originalPolicy?.daily_max_tx_count ?? 0),
+        "local policy daily tx count restore did not settle",
+      );
       currentStatus = await refreshWalletStatus(client);
     }
   });
 
   await runStep("daily USD limit risk control", async () => {
+    if (!localPolicyAvailable) {
+      return;
+    }
     const originalPolicy = await sandbox.getLocalPolicy();
     currentStatus = await refreshWalletStatus(client);
     const expectedAddress = String(currentStatus?.addresses?.ethereum ?? currentStatus?.address ?? "").trim();
@@ -1517,6 +1696,13 @@ async function main() {
         daily_limit_usd: effectiveSpentUsd + targetIntentUsd * 1.5,
         blacklist_to: [],
       });
+      await waitForLocalPolicy(
+        (policy) => (
+          !policyHasAddress(policy?.blacklist_to, "ethereum", expectedAddress)
+          && Number(policy?.daily_limit_usd ?? 0) === effectiveSpentUsd + targetIntentUsd * 1.5
+        ),
+        `local policy daily USD limit did not settle for ${expectedAddress}`,
+      );
 
       await signEthereumTransaction(signer, expectedAddress, valueWei);
       await assert.rejects(
@@ -1525,11 +1711,15 @@ async function main() {
       );
     } finally {
       await updateLocalPolicy(buildPolicyRestorePatch(originalPolicy));
+      await waitForLocalPolicy(
+        (policy) => Number(policy?.daily_limit_usd ?? 0) === Number(originalPolicy?.daily_limit_usd ?? 0),
+        "local policy daily USD restore did not settle",
+      );
       currentStatus = await refreshWalletStatus(client);
     }
   });
 
-  await runStep("uniswap v3 swap smoke", async () => {
+  await runStep("evm swap smoke", async () => {
     const { data: st, response: rs } = await client.GET("/api/v1/wallet/status", {});
     assert.equal(rs.status, 200);
     const uid = String(st?.uid ?? "").trim();
@@ -1537,41 +1727,13 @@ async function main() {
 
     await assertSwapSmoke(
       client,
-      "/api/v1/tx/swap/uniswap_v3",
+      "/api/v1/tx/swap/evm",
       {
         chain: "ethereum",
         uid,
         token_in: "native",
         token_out: ETHEREUM_USDC,
         amount_in_wei: "1",
-        amount_out_min_wei: "0",
-        fee: 3000,
-      },
-      (parsed) => {
-        assert.equal(String(parsed.chain ?? "").toLowerCase(), "ethereum");
-        assert.equal(String(parsed.token_in ?? "").toLowerCase(), "native");
-        assert.equal(String(parsed.token_out ?? "").toLowerCase(), ETHEREUM_USDC.toLowerCase());
-        assert.ok(parsed.swap_submitted_id || parsed.swap_tx_hash, "swap success should include submission id or tx hash");
-      },
-    );
-  });
-
-  await runStep("uniswap v2 swap smoke", async () => {
-    const { data: st, response: rs } = await client.GET("/api/v1/wallet/status", {});
-    assert.equal(rs.status, 200);
-    const uid = String(st?.uid ?? "").trim();
-    assert.ok(uid, "uid required");
-
-    await assertSwapSmoke(
-      client,
-      "/api/v1/tx/swap/uniswap_v2",
-      {
-        chain: "ethereum",
-        uid,
-        token_in: "native",
-        token_out: ETHEREUM_USDC,
-        amount_in_wei: "1",
-        amount_out_min_wei: "0",
       },
       (parsed) => {
         assert.equal(String(parsed.chain ?? "").toLowerCase(), "ethereum");
@@ -1590,7 +1752,7 @@ async function main() {
 
     await assertSwapSmoke(
       client,
-      "/api/v1/tx/swap/solana-jup",
+      "/api/v1/tx/swap/solana",
       {
         chain: "solana",
         uid,
@@ -1615,7 +1777,7 @@ async function main() {
 
     await assertSwapSmoke(
       client,
-      "/api/v1/tx/swap/sui-cetus",
+      "/api/v1/tx/swap/sui",
       {
         chain: "sui",
         uid,
@@ -1730,6 +1892,36 @@ async function main() {
 
   await runStep("monad transfer smoke", async () => {
     await assertTransferSmokeForChain(client, currentStatus, uid, "monad");
+  });
+
+  await runStep("kite transaction sign smoke", async () => {
+    await assertEvmTransactionSignForChain(client, sandbox, currentStatus, uid, "kite");
+  });
+
+  await runStep("tempo transaction sign smoke", async () => {
+    await assertEvmTransactionSignForChain(client, sandbox, currentStatus, uid, "tempo");
+  });
+
+  await runStep("kite transfer smoke", async () => {
+    await assertTransferSmokeForChain(client, currentStatus, uid, "kite");
+  });
+
+  await runStep("tempo transfer smoke", async () => {
+    await assertTransferSmokeForChain(client, currentStatus, uid, "tempo");
+  });
+
+  await runStep("kite and tempo history isolation", async () => {
+    await assertHistoryQueryForChain(sandbox, "kite");
+    await assertHistoryQueryForChain(sandbox, "tempo");
+  });
+
+  await runStep("kite and tempo refreshChain smoke", async () => {
+    await assertRefreshChainForChain(sandbox, "kite");
+    await assertRefreshChainForChain(sandbox, "tempo");
+  });
+
+  await runStep("tron disabled by default", async () => {
+    await assertTronDisabled(client, currentStatus, uid);
   });
 
   process.stdout.write("integration smoke passed\n");

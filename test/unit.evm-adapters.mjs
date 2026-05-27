@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 
 import { Transaction } from "ethers";
 
-import { ClawEthersSigner } from "../dist/ethers.js";
+import { ClawEthersSigner } from "../dist/evm/ethers.js";
 
 const SIGNATURE_HEX =
   "0x"
