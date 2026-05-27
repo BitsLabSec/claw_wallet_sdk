@@ -10,7 +10,7 @@ import {
   stripHexPrefix,
   toBase64,
   utf8ToPayloadHex,
-} from "../dist/encoding.js";
+} from "../dist/util/encoding.js";
 
 const orig = new Uint8Array([0, 1, 255, 128, 16]);
 const h = bytesToHex(orig);

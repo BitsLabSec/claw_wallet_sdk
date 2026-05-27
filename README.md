@@ -2,52 +2,138 @@
 
 TypeScript SDK for the Claw Wallet sandbox.
 
-This package provides:
-
-- a typed HTTP client for the live sandbox OpenAPI
-- signer and account adapters for `ethers`, `viem`, `@solana/web3.js`, and `@mysten/sui`
-
 ## Install
 
 ```bash
 npm install @claw_wallet_sdk/claw_wallet
 ```
 
-Install optional peers **only for the adapters you import**:
+The root package is the recommended entry for app integrations. It exposes `ClawWallet`, the typed OpenAPI client, and lightweight helpers without loading optional chain libraries.
 
-```bash
-npm install ethers          # for `@claw_wallet_sdk/claw_wallet/ethers`
-npm install viem            # for `@claw_wallet_sdk/claw_wallet/viem`
-npm install @solana/web3.js # for `@claw_wallet_sdk/claw_wallet/solana`
-npm install @mysten/sui     # for `@claw_wallet_sdk/claw_wallet/sui`
-```
-
-The main entry (`@claw_wallet_sdk/claw_wallet`) only loads `openapi-fetch`; it does **not** pull viem/ethers/Solana/Sui at runtime.
-
-## Import boundaries
-
-Use the root entry only for core SDK functionality:
+## Recommended Usage
 
 ```ts
-import {
-  createClawWalletClient,
-  ClawSandboxClient,
-  buildPersonalSignBody,
-} from "@claw_wallet_sdk/claw_wallet";
+import { ClawWallet } from "@claw_wallet_sdk/claw_wallet";
+
+const claw = new ClawWallet({
+  uid: process.env.CLAY_UID!,
+  sandboxUrl: process.env.CLAY_SANDBOX_URL!,
+  token: process.env.CLAY_AGENT_TOKEN,
+});
+
+const status = await claw.wallet.status();
+const assets = await claw.wallet.assets();
 ```
 
-Use subpath imports for chain adapters:
+`ClawWallet` groups the common sandbox flows by task:
+
+- `claw.wallet.*`: status, init, unlock, reactivate, backup, import, provision, bind, assets, history, policy
+- `claw.tx.*`: sign, broadcast, transfer, EVM/Solana/Sui invoke, Sui Haedal
+- `claw.swap.*`: EVM, Solana, and Sui same-chain swaps
+- `claw.bridge.lifi.*`: token discovery, quote, execute, and `final_status_url` lookup
+- `claw.policy.*` and `claw.assets.*`: focused aliases for common wallet operations
+
+The facade accepts SDK-friendly camelCase fields for newer helpers, such as `amountIn`, `tokenOut`, `slippageTolerance`, `fromChainId`, and `confirmedByUser`, while still accepting the sandbox OpenAPI snake_case fields.
+
+## Wallet
 
 ```ts
-import { ClawEthersSigner } from "@claw_wallet_sdk/claw_wallet/ethers";
-import { createClawAccountFromSandbox } from "@claw_wallet_sdk/claw_wallet/viem";
-import { ClawSolanaSigner } from "@claw_wallet_sdk/claw_wallet/solana";
-import { ClawSuiSigner } from "@claw_wallet_sdk/claw_wallet/sui";
+await claw.wallet.init({ master_pin: "123456" });
+await claw.wallet.unlock({ pin: "123456" });
+await claw.wallet.reactivate();
+
+const policy = await claw.wallet.policy();
+const history = await claw.wallet.history({ chain: "ethereum", limit: 20 });
 ```
 
-This is an intentional breaking change from earlier in-repo revisions that re-exported adapters from the root entry.
+## Transfer
 
-## Core client
+```ts
+await claw.transfer({
+  chain: "solana",
+  to: "recipient-address",
+  amount: "1000000",
+  tokenContract: "native",
+  confirmedByUser: true,
+});
+```
+
+## Swap
+
+```ts
+await claw.swap.evm({
+  chain: "base",
+  tokenIn: "native",
+  tokenOut: "0x0000000000000000000000000000000000000001",
+  amountIn: "1000000000000000",
+  slippageTolerance: 50,
+});
+
+await claw.swap.solana({
+  tokenOut: "USDC",
+  amountIn: "1000000",
+  slippageBps: 75,
+});
+
+await claw.swap.sui({
+  tokenIn: "SUI",
+  tokenOut: "USDC",
+  amount: "1000000000",
+});
+```
+
+## Bridge
+
+```ts
+const tokens = await claw.bridge.lifi.tokens(["1", "1151111081099710"]);
+
+const quote = await claw.bridge.lifi.quote({
+  fromChainId: "1",
+  fromAddress: "0xSourceWallet",
+  fromToken: "native",
+  amount: "1000000000000000",
+  toChainId: "1151111081099710",
+  toAddress: "SolanaTargetWallet",
+  toToken: "USDC",
+});
+
+const bridge = await claw.bridge.lifi.execute({
+  fromChainId: "1",
+  fromAddress: "0xSourceWallet",
+  fromToken: "native",
+  amount: "1000000000000000",
+  toChainId: "1151111081099710",
+  toAddress: "SolanaTargetWallet",
+  toToken: "USDC",
+});
+
+if (bridge.status === "PENDING" && bridge.final_status_url) {
+  const status = await claw.bridge.lifi.getStatus(bridge.final_status_url);
+}
+```
+
+## Transactions
+
+```ts
+await claw.tx.evm.invoke({
+  chain: "base",
+  to: "0xContract",
+  data: "0x...",
+  amount_wei: "0",
+  confirmedByUser: true,
+});
+
+await claw.broadcastTransaction({
+  chain: "ethereum",
+  raw_tx_hex: "0x...",
+});
+```
+
+`ClawWallet` extends `ClawSandboxClient`, so historical helper names like `getStatus()`, `getAssets()`, `sign()`, `broadcast()`, `broadcastTransaction()`, and `transfer()` continue to work. Prefer the grouped `claw.wallet.*`, `claw.tx.*`, `claw.swap.*`, and `claw.bridge.*` API for new integrations.
+
+## Typed Client
+
+Use the typed OpenAPI client when you need direct route-level access.
 
 ```ts
 import { createClawWalletClient } from "@claw_wallet_sdk/claw_wallet";
@@ -57,10 +143,76 @@ const client = createClawWalletClient({
   agentToken: process.env.CLAY_AGENT_TOKEN,
 });
 
-const { data } = await client.GET("/api/v1/wallet/status", {});
+const { data, error, response } = await client.GET("/api/v1/wallet/status", {});
 ```
 
-## Sandbox helper client
+## Optional Chain Signers
+
+Install optional peers only for the adapters you import:
+
+```bash
+npm install ethers          # for @claw_wallet_sdk/claw_wallet/ethers
+npm install viem            # for @claw_wallet_sdk/claw_wallet/viem
+npm install @solana/web3.js # for @claw_wallet_sdk/claw_wallet/solana
+npm install @mysten/sui     # for @claw_wallet_sdk/claw_wallet/sui
+```
+
+These are useful when the integration is already written around a chain signer abstraction.
+
+```ts
+import { JsonRpcProvider } from "ethers";
+import { ClawEthersSigner } from "@claw_wallet_sdk/claw_wallet/ethers";
+
+const signer = new ClawEthersSigner(
+  {
+    uid: process.env.CLAY_UID!,
+    sandboxUrl: process.env.CLAY_SANDBOX_URL!,
+    sandboxToken: process.env.CLAY_AGENT_TOKEN!,
+    chain: "base",
+  },
+  new JsonRpcProvider(process.env.RPC_URL!),
+);
+
+await signer.swap({
+  chain: "base",
+  tokenIn: "native",
+  tokenOut: "0x0000000000000000000000000000000000000001",
+  amountIn: "1000000000000000",
+});
+```
+
+```ts
+import { ClawSolanaSigner } from "@claw_wallet_sdk/claw_wallet/solana";
+
+const signer = await ClawSolanaSigner.fromSandbox({
+  uid: process.env.CLAY_UID!,
+  sandboxUrl: process.env.CLAY_SANDBOX_URL!,
+  sandboxToken: process.env.CLAY_AGENT_TOKEN!,
+});
+
+await signer.swap({
+  tokenOut: "USDC",
+  amountIn: "1000000",
+});
+```
+
+```ts
+import { ClawSuiSigner } from "@claw_wallet_sdk/claw_wallet/sui";
+
+const signer = await ClawSuiSigner.fromSandbox({
+  uid: process.env.CLAY_UID!,
+  sandboxUrl: process.env.CLAY_SANDBOX_URL!,
+  sandboxToken: process.env.CLAY_AGENT_TOKEN!,
+});
+
+await signer.invoke({
+  txBytesBase64: "...",
+});
+```
+
+## Lower-Level Sandbox Client
+
+`ClawSandboxClient` remains available for older integrations and advanced route grouping.
 
 ```ts
 import { ClawSandboxClient } from "@claw_wallet_sdk/claw_wallet";
@@ -72,135 +224,29 @@ const sandbox = new ClawSandboxClient({
 });
 
 const status = await sandbox.getStatus();
-const ready = await sandbox.reactivateWallet();
-const policy = await sandbox.getLocalPolicy();
-const assets = await sandbox.getAssets();
-const history = await sandbox.getHistory({ chain: "ethereum", limit: 20 });
-await sandbox.refreshWallet();
-```
-
-High-frequency helper methods currently include:
-
-- `getStatus()`
-- `initWallet()`
-- `unlockWallet()`
-- `reactivateWallet()`
-- `refreshWallet()`
-- `getAssets()`
-- `getHistory()`
-- `getLocalPolicy()`
-- `sign()`
-- `broadcast()`
-- `transfer()`
-
-## Wallet lifecycle
-
-```ts
-import { ClawSandboxClient } from "@claw_wallet_sdk/claw_wallet";
-
-const sandbox = new ClawSandboxClient({
-  uid: process.env.CLAY_UID!,
-  sandboxUrl: process.env.CLAY_SANDBOX_URL!,
-  sandboxToken: process.env.CLAY_AGENT_TOKEN!,
-});
-
-await sandbox.initWallet({ master_pin: "123456" });
-
-// For provisioned/imported wallets that require a PIN:
-await sandbox.unlockWallet({ pin: "123456" });
-
-// For locally initialized wallets with a persisted local SEK:
 await sandbox.reactivateWallet();
+await sandbox.updateLocalPolicy({ daily_limit_usd: 1000 });
 ```
 
-## Ethers signer
+## Import Boundaries
 
 ```ts
-import { JsonRpcProvider } from "ethers";
+import { ClawWallet, ClawSandboxClient, createClawWalletClient } from "@claw_wallet_sdk/claw_wallet";
 import { ClawEthersSigner } from "@claw_wallet_sdk/claw_wallet/ethers";
-
-const signer = new ClawEthersSigner(
-  {
-    uid: process.env.CLAY_UID!,
-    sandboxUrl: process.env.CLAY_SANDBOX_URL!,
-    sandboxToken: process.env.CLAY_AGENT_TOKEN!,
-  },
-  new JsonRpcProvider(process.env.RPC_URL!),
-);
-```
-
-## Viem account
-
-```ts
 import { createClawAccountFromSandbox } from "@claw_wallet_sdk/claw_wallet/viem";
-
-const account = await createClawAccountFromSandbox({
-  uid: process.env.CLAY_UID!,
-  sandboxUrl: process.env.CLAY_SANDBOX_URL!,
-  sandboxToken: process.env.CLAY_AGENT_TOKEN!,
-});
-```
-
-## Solana signer
-
-```ts
 import { ClawSolanaSigner } from "@claw_wallet_sdk/claw_wallet/solana";
-
-const signer = await ClawSolanaSigner.fromSandbox({
-  uid: process.env.CLAY_UID!,
-  sandboxUrl: process.env.CLAY_SANDBOX_URL!,
-  sandboxToken: process.env.CLAY_AGENT_TOKEN!,
-});
-
-const signed = await signer.signMessage(new Uint8Array([1, 2, 3]));
-```
-
-## Sui signer
-
-```ts
 import { ClawSuiSigner } from "@claw_wallet_sdk/claw_wallet/sui";
-
-const signer = await ClawSuiSigner.fromSandbox({
-  uid: process.env.CLAY_UID!,
-  sandboxUrl: process.env.CLAY_SANDBOX_URL!,
-  sandboxToken: process.env.CLAY_AGENT_TOKEN!,
-});
-
-const signed = await signer.signPersonalMessage(new Uint8Array([1, 2, 3]));
 ```
 
-### Sui `personal_sign` sandbox semantics
+The root entry does not import `ethers`, `viem`, `@solana/web3.js`, or `@mysten/sui` at runtime. Use subpath imports for chain adapters.
+
+## Sui Personal Sign Semantics
 
 The sandbox currently uses a Claw-specific verification flow for Sui `personal_sign`:
 
 - if the provided message bytes do not already start with the Sui personal-message intent prefix, the sandbox prepends `0x03 0x00 0x00`
 - it computes `blake2b-256` over that prefixed payload
-- it signs the digest with the wallet's Ed25519 key
+- it signs the digest with the wallet Ed25519 key
 - the SDK serializes the returned signature as `flag || rawSignature || rawPublicKey`, where `flag=0x00` for Ed25519
 
-That means `ClawSuiSigner.signPersonalMessage()` is aligned with sandbox behavior, not with every generic Mysten helper's default assumptions for plain message verification.
-
 For Sui transaction bytes, the sandbox signs `blake2b-256(txBytes)` without adding the `personal_sign` intent prefix.
-
-## Verifying packaging locally
-
-After `npm run build`, run `npm run test:pack-consumer` to simulate `npm pack` + a clean consumer project: core import with **no** viem/ethers/Solana/Sui installed, then each subpath after installing the matching peer.
-
-## Migration
-
-If existing code imports adapters from the root entry, change them to subpath imports:
-
-```ts
-// before
-import { ClawEthersSigner, createClawAccountFromSandbox } from "@claw_wallet_sdk/claw_wallet";
-
-// after
-import { ClawEthersSigner } from "@claw_wallet_sdk/claw_wallet/ethers";
-import { createClawAccountFromSandbox } from "@claw_wallet_sdk/claw_wallet/viem";
-```
-
-## Notes
-
-- The sandbox still writes `CLAY_*` environment variables today. That is a sandbox compatibility detail, not SDK naming guidance. If you just don't know how to get environment variables, find it on your sandbox dir, or ask your agent.
-- Public API naming in this package should use `claw`, not `clay`.
-- The sandbox must already be initialized and unlocked before signing flows succeed.

@@ -13,14 +13,14 @@ import {
   createClawSandboxPublicClient,
   createClawAccountFromSandbox,
   recoverEvmPersonalSignAddress,
-} from "../dist/viem.js";
+} from "../dist/evm/viem.js";
 import {
   ClawEthersSigner,
   createClawSandboxJsonRpcProvider,
   recoverAddressFromPersonalSignEthers,
-} from "../dist/ethers.js";
-import { ClawSolanaSigner } from "../dist/solana.js";
-import { ClawSuiSigner } from "../dist/sui.js";
+} from "../dist/evm/ethers.js";
+import { ClawSolanaSigner } from "../dist/solana/solana.js";
+import { ClawSuiSigner } from "../dist/sui/sui.js";
 import {
   Signature,
   Transaction as EthersTransaction,
@@ -1708,7 +1708,7 @@ async function main() {
     }
   });
 
-  await runStep("uniswap v3 swap smoke", async () => {
+  await runStep("evm swap smoke", async () => {
     const { data: st, response: rs } = await client.GET("/api/v1/wallet/status", {});
     assert.equal(rs.status, 200);
     const uid = String(st?.uid ?? "").trim();
@@ -1716,41 +1716,13 @@ async function main() {
 
     await assertSwapSmoke(
       client,
-      "/api/v1/tx/swap/uniswap_v3",
+      "/api/v1/tx/swap/evm",
       {
         chain: "ethereum",
         uid,
         token_in: "native",
         token_out: ETHEREUM_USDC,
         amount_in_wei: "1",
-        amount_out_min_wei: "0",
-        fee: 3000,
-      },
-      (parsed) => {
-        assert.equal(String(parsed.chain ?? "").toLowerCase(), "ethereum");
-        assert.equal(String(parsed.token_in ?? "").toLowerCase(), "native");
-        assert.equal(String(parsed.token_out ?? "").toLowerCase(), ETHEREUM_USDC.toLowerCase());
-        assert.ok(parsed.swap_submitted_id || parsed.swap_tx_hash, "swap success should include submission id or tx hash");
-      },
-    );
-  });
-
-  await runStep("uniswap v2 swap smoke", async () => {
-    const { data: st, response: rs } = await client.GET("/api/v1/wallet/status", {});
-    assert.equal(rs.status, 200);
-    const uid = String(st?.uid ?? "").trim();
-    assert.ok(uid, "uid required");
-
-    await assertSwapSmoke(
-      client,
-      "/api/v1/tx/swap/uniswap_v2",
-      {
-        chain: "ethereum",
-        uid,
-        token_in: "native",
-        token_out: ETHEREUM_USDC,
-        amount_in_wei: "1",
-        amount_out_min_wei: "0",
       },
       (parsed) => {
         assert.equal(String(parsed.chain ?? "").toLowerCase(), "ethereum");
@@ -1769,7 +1741,7 @@ async function main() {
 
     await assertSwapSmoke(
       client,
-      "/api/v1/tx/swap/solana-jup",
+      "/api/v1/tx/swap/solana",
       {
         chain: "solana",
         uid,
@@ -1794,7 +1766,7 @@ async function main() {
 
     await assertSwapSmoke(
       client,
-      "/api/v1/tx/swap/sui-cetus",
+      "/api/v1/tx/swap/sui",
       {
         chain: "sui",
         uid,

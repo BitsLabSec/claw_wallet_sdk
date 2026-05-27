@@ -133,6 +133,60 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/wallet/backup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export current local wallet backup snapshot
+         * @description Returns a backup-oriented JSON snapshot assembled from:
+         *     - current in-memory wallet identity metadata
+         *     - local `identity`, `share1`, `share3`, and `policy` JSON files when present
+         *
+         *     This is a read-only export helper. It does not rotate keys or push anything to the relay.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Backup snapshot */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            [key: string]: unknown;
+                        };
+                    };
+                };
+                /** @description Local backup file read failed */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ErrorText"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/wallet/init": {
         parameters: {
             query?: never;
@@ -279,7 +333,7 @@ export interface paths {
         put?: never;
         /**
          * Reactivate a locally initialized wallet using the local SEK
-         * @description Not for imported/provisioned wallets — use `/api/v1/wallet/unlock` instead.
+         * @description Not for imported/provisioned wallets - use `/api/v1/wallet/unlock` instead.
          */
         post: {
             parameters: {
@@ -908,7 +962,7 @@ export interface paths {
         };
         /**
          * Read-only local policy file (policy.json)
-         * @description Returns the raw JSON from the on-disk `policy.json`. **GET only** — there is no POST/PUT on this path.
+         * @description Returns the raw JSON from the on-disk `policy.json`. **GET only** - there is no POST/PUT on this path.
          *
          *     To change limits or rules, use the **bound-user app** after binding, or rely on **relay-driven policy sync** that rewrites the file. A merged policy object is also included in `GET /api/v1/wallet/status`.
          */
@@ -946,6 +1000,770 @@ export interface paths {
                     };
                     content: {
                         "text/plain": components["schemas"]["ErrorText"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/policy/update": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Update selected local policy fields
+         * @description Same behavior as `POST /api/v1/policy/update`.
+         */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["LocalPolicyUpdateRequest"];
+                };
+            };
+            responses: {
+                /** @description Policy updated and reloaded */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["LocalPolicyUpdateResponse"];
+                    };
+                };
+                /** @description Invalid payload or limit violation */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ErrorText"];
+                    };
+                };
+                /** @description Missing or invalid bearer token */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ErrorText"];
+                    };
+                };
+                /** @description Method not allowed */
+                405: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ErrorText"];
+                    };
+                };
+                /** @description Policy engine not initialized or policy persistence failed */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ErrorText"];
+                    };
+                };
+            };
+        };
+        /**
+         * Update local policy fields
+         * @description Applies a partial update to any local policy field, preserving all unspecified fields.
+         *
+         *     Current limits enforced by the sandbox:
+         *     - `max_amount_per_tx_usd`: 0 to 1000
+         *     - `daily_limit_usd`: 0 to 10000
+         *     - `daily_max_tx_count`: 0 to 10000
+         *     - `pin_ttl_seconds`: 0 or greater
+         *     - `unpriced_asset_policy`: `allow` or `block`
+         *
+         *     The updated policy is persisted to the encrypted on-disk policy store and then reloaded into the runtime engine.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["LocalPolicyUpdateRequest"];
+                };
+            };
+            responses: {
+                /** @description Policy updated and reloaded */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["LocalPolicyUpdateResponse"];
+                    };
+                };
+                /** @description Invalid payload or limit violation */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ErrorText"];
+                    };
+                };
+                /** @description Missing or invalid bearer token */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ErrorText"];
+                    };
+                };
+                /** @description Method not allowed */
+                405: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ErrorText"];
+                    };
+                };
+                /** @description Policy engine not initialized or policy persistence failed */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ErrorText"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/skills/verified/overview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get verified skills overview
+         * @description Returns the overview Markdown content from the Claw Wallet official test backend, which typically lists all supported skill names.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Verified skills overview content */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @example ok */
+                            status?: string;
+                            /** @description Markdown content of the skills overview */
+                            content?: string;
+                        };
+                    };
+                };
+                /** @description Upstream fetch failed */
+                502: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ErrorText"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/skills/verified/get": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get SKILL.md for a verified skill
+         * @description Fetches the `SKILL.md` content for a specific verified skill from the Claw Wallet official test backend.
+         */
+        get: {
+            parameters: {
+                query: {
+                    /** @description Name of the verified skill. */
+                    name: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Skill content */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @example ok */
+                            status?: string;
+                            name?: string;
+                            /** @description Markdown content of SKILL.md */
+                            content?: string;
+                        };
+                    };
+                };
+                /** @description Missing or invalid skill name */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ErrorText"];
+                    };
+                };
+                /** @description Skill not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ErrorText"];
+                    };
+                };
+                /** @description Upstream fetch failed */
+                502: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ErrorText"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/skills/safuskill/preload": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Preload the default SafuSkill set
+         * @description Downloads and caches the default `BNBChain Skills` subset from `safuskill.ai` into the local sandbox skill cache.
+         *     Already-installed entries are reported as `cached`; first-time downloads are reported as `downloaded`.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Preload result */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SafuSkillPreloadResponse"];
+                    };
+                };
+                /** @description SafuSkill upstream fetch or cache write failed */
+                502: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ErrorText"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/skills/by-name": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Search SafuSkill by name and cache it locally
+         * @description Searches `safuskill.ai` for the requested skill name, fetches the matching skill detail, and writes
+         *     `SKILL.md` plus metadata under the sandbox skill cache directory.
+         *
+         *     If the skill is not found upstream but a local cached copy already exists, the handler returns a
+         *     `local_cache_stale` response that points at the existing local file.
+         */
+        get: {
+            parameters: {
+                query: {
+                    /** @description Skill name to search for. */
+                    name: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Skill resolved and cached */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SafuSkillResolveResponse"];
+                    };
+                };
+                /** @description Missing `name` query parameter */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ErrorText"];
+                    };
+                };
+                /** @description Skill not found on SafuSkill and no local cached copy exists */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ErrorText"];
+                    };
+                };
+                /** @description SafuSkill upstream fetch or cache write failed */
+                502: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ErrorText"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/skills/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read a cached local SafuSkill
+         * @description Returns the `SKILL.md` content for a skill that was previously installed into the local sandbox cache.
+         */
+        get: {
+            parameters: {
+                query: {
+                    /** @description Local skill name to read. */
+                    name: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Cached skill contents */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        /**
+                         * @example {
+                         *       "status": "ok",
+                         *       "name": "Example Skill",
+                         *       "local_path": "sandbox_skill/example-skill/SKILL.md",
+                         *       "content": "# Example Skill\n...\n"
+                         *     }
+                         */
+                        "application/json": components["schemas"]["SafuSkillReadResponse"];
+                    };
+                };
+                /** @description Missing `name` query parameter */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ErrorText"];
+                    };
+                };
+                /** @description Skill is not installed locally */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ErrorText"];
+                    };
+                };
+                /** @description Local skill file read failed */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ErrorText"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/x402/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Search cached x402 Bazaar services
+         * @description Searches the locally cached Coinbase x402 Bazaar resource index for services that match a natural-language purchase intent
+         *     or token keyword. The sandbox first derives a structured query plan (`intent`, `asset`, `service`, `network`) and can skip
+         *     searching entirely when the prompt does not look like an x402 request. If the local cache does not contain a match, or the
+         *     cache is stale, the sandbox refreshes the list from Coinbase Bazaar and persists it to a local JSON file before searching again.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Natural-language intent or token keyword. Optional when `intent`, `asset`, or `service` is supplied. */
+                    q?: string;
+                    /** @description Optional structured intent extracted by the agent. */
+                    intent?: string;
+                    /** @description Optional asset or token keyword extracted by the agent. */
+                    asset?: string;
+                    /** @description Optional service keyword extracted by the agent. */
+                    service?: string;
+                    /** @description Optional network filter, such as `base`. */
+                    network?: string;
+                    /** @description Bazaar resource type filter. */
+                    type?: string;
+                    limit?: number;
+                    /** @description Force a refresh from Coinbase before searching. */
+                    refresh?: boolean;
+                    /** @description Return a stale cache hit if refresh fails. */
+                    include_stale?: boolean;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Search result */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["X402ServiceSearchResponse"];
+                    };
+                };
+                /** @description Missing or invalid query parameters */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ErrorText"];
+                    };
+                };
+                /** @description Coinbase x402 Bazaar fetch failed and no valid fallback response was available */
+                502: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ErrorText"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        /**
+         * Search x402 Bazaar services with a JSON payload
+         * @description Same behavior as the GET variant, but accepts a structured JSON request body.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["X402ServiceSearchRequest"];
+                };
+            };
+            responses: {
+                /** @description Search result */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["X402ServiceSearchResponse"];
+                    };
+                };
+                /** @description Missing or invalid JSON payload */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ErrorText"];
+                    };
+                };
+                /** @description Coinbase x402 Bazaar fetch failed and no valid fallback response was available */
+                502: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ErrorText"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/x402/pay_and_execute": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Pay for and execute an x402 resource in one call
+         * @description Convenience endpoint that wraps the full buyer flow:
+         *     1. Execute the target resource once.
+         *     2. If the upstream returns `402 Payment Required`, build a payment proof with the currently unlocked sandbox wallet.
+         *     3. Retry the same resource with the generated `PAYMENT-SIGNATURE`.
+         *
+         *     `search` remains a separate step and should still be used to discover the resource URL.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["X402PayAndExecuteRequest"];
+                };
+            };
+            responses: {
+                /** @description Initial response, generated proof, and final upstream response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["X402PayAndExecuteResponse"];
+                    };
+                };
+                /** @description Missing or invalid request payload */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ErrorText"];
+                    };
+                };
+                /** @description Upstream execution or proof generation failed */
+                502: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ErrorText"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/news/categories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get free news categories
+         * @description Get all available news categories and subcategories for the free tier.
+         *     The `category` and `subcategory` keys returned from this endpoint MUST be used as query parameters for the `/api/v1/news/hot` endpoint.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successfully returned news categories */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            success?: boolean;
+                            data?: {
+                                provider?: string;
+                                data?: Record<string, never>;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/news/hot": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get hot news and trending tweets
+         * @description Get hot news articles and trending tweets by category.
+         *     **CRITICAL INSTRUCTION FOR AGENT**: Before calling this endpoint, you MUST first call the `/api/v1/news/categories` endpoint to retrieve the valid `category` and `subcategory` keys, and use them as parameters for this request.
+         */
+        get: {
+            parameters: {
+                query: {
+                    /** @description Required. The category key retrieved from `/api/v1/news/categories` (e.g., "macro", "crypto"). */
+                    category: string;
+                    /** @description Optional. The subcategory key retrieved from `/api/v1/news/categories` for more specific filtering (e.g., "defi", "nft"). */
+                    subcategory?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successfully returned hot news and tweets */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            success?: boolean;
+                            data?: {
+                                provider?: string;
+                                data?: Record<string, never>;
+                            };
+                        };
                     };
                 };
             };
@@ -1101,7 +1919,14 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Build, sign, and submit native or token transfer */
+        /**
+         * Build, sign, and submit native or token transfer
+         * @description **Transfer entrypoint (use this for all transfers).**
+         *
+         *     - Native transfer: omit `token_contract` (or leave it empty) and set `amount_wei` as the smallest unit.
+         *     - Token transfer (ERC20/TIP20): set `token_contract` and `amount_wei` as the token's smallest unit.
+         *     - **Tempo token transfers MUST use this endpoint** (do not use `/api/v1/tx/evm/invoke` for Tempo/ERC20-style transfers).
+         */
         post: {
             parameters: {
                 query?: never;
@@ -1152,7 +1977,14 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Legacy gas-price EVM contract call (sign + broadcast) */
+        /**
+         * EIP-1559 EVM contract call (sign + broadcast)
+         * @description **Not a transfer endpoint.**
+         *
+         *     - For native or token transfers (including Tempo TIP20/ERC20-style tokens), use `/api/v1/tx/transfer`.
+         *     - Use this endpoint only for non-transfer contract calls when you already have calldata.
+         *     - This is the only registered managed EVM invoke route in `RegisterSandboxRoutes`.
+         */
         post: {
             parameters: {
                 query?: never;
@@ -1160,7 +1992,7 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: {
+            requestBody: {
                 content: {
                     "application/json": components["schemas"]["ManagedEVMInvokeRequest"];
                 };
@@ -1177,43 +2009,14 @@ export interface paths {
                         };
                     };
                 };
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/tx/evm/invoke_eip1559": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** EIP-1559 EVM contract call (sign + broadcast) */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/json": components["schemas"]["ManagedEVMInvokeRequest"];
-                };
-            };
-            responses: {
-                /** @description Managed EVM tx response */
-                200: {
+                /** @description Invalid payload or policy rejection */
+                400: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "text/plain": components["schemas"]["ErrorText"];
+                    };
                 };
             };
         };
@@ -1223,7 +2026,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/tx/sui/execute_txbytes": {
+    "/api/v1/tx/sol/invoke": {
         parameters: {
             query?: never;
             header?: never;
@@ -1233,8 +2036,10 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Sign and execute Sui transaction bytes
-         * @description Accepts JSON or raw string payloads depending on the caller.
+         * Sign and execute a provided Solana transaction payload
+         * @description Registered Solana invoke route.
+         *
+         *     Use this for prepared Solana transactions or payloads. For simple SOL/SPL transfers, use `/api/v1/tx/transfer`.
          */
         post: {
             parameters: {
@@ -1245,7 +2050,67 @@ export interface paths {
             };
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["HaedalTxBytesExecuteRequest"];
+                    "application/json": components["schemas"]["ManagedSolInvokeRequest"];
+                };
+            };
+            responses: {
+                /** @description Managed Solana tx response */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            [key: string]: unknown;
+                        };
+                    };
+                };
+                /** @description Invalid payload or policy rejection */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ErrorText"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tx/sui/invoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Sign and execute provided Sui transaction bytes
+         * @description Registered Sui invoke route.
+         *
+         *     Accepts either:
+         *     - JSON body matching `SuiTxBytesExecuteRequest`
+         *     - a quoted raw string payload
+         *
+         *     The sandbox dry-runs the transaction first, then signs and broadcasts it.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["SuiTxBytesExecuteRequest"];
                     "text/plain": string;
                 };
             };
@@ -1278,7 +2143,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/tx/sui/execute_option": {
+    "/api/v1/tx/sui/haedal": {
         parameters: {
             query?: never;
             header?: never;
@@ -1287,7 +2152,13 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Proxy Haedal/Cetus skill option (defi + body) */
+        /**
+         * Execute a Haedal option-driven Sui action
+         * @description Registered Haedal helper route.
+         *
+         *     The request chooses a predefined `option` and passes free-form `body` fields.
+         *     The sandbox resolves the option into tx bytes, then signs and broadcasts the resulting Sui transaction.
+         */
         post: {
             parameters: {
                 query?: never;
@@ -1301,15 +2172,13 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description Skill-dependent JSON */
+                /** @description Haedal execution result */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            [key: string]: unknown;
-                        };
+                        "application/json": components["schemas"]["SuiTxResponse"];
                     };
                 };
             };
@@ -1320,7 +2189,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/tx/swap/uniswap_v3": {
+    "/api/v1/tx/swap/evm": {
         parameters: {
             query?: never;
             header?: never;
@@ -1329,7 +2198,28 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Uniswap V3 swap (EVM) */
+        /**
+         * Managed EVM same-chain swap
+         * @description Managed same-chain swap entry for **EVM chains**.
+         *
+         *     Supported EVM chains (by `chain`):
+         *     - ethereum (1)
+         *     - optimism (10)
+         *     - bsc (56)
+         *     - polygon (137)
+         *     - monad (143)
+         *     - base (8453)
+         *     - arbitrum (42161)
+         *     - avalanche (43114)
+         *     - zksync (324)
+         *     - linea (59144)
+         *
+         *     Notes:
+         *     - The sandbox tries providers in order: `0x` -> `okx` -> `uniswap` -> `lifi`.
+         *     - `token_in` / `token_out` accept EVM token addresses, or `native` for the chain native asset.
+         *     - `amount_in_wei` is required and must be a decimal string in smallest units.
+         *     - Slippage / routing controls are optional and mainly affect the Uniswap path.
+         */
         post: {
             parameters: {
                 query?: never;
@@ -1337,9 +2227,9 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: {
+            requestBody: {
                 content: {
-                    "application/json": components["schemas"]["UniswapV3SwapRequest"];
+                    "application/json": components["schemas"]["EvmSwapTradeAPIRequest"];
                 };
             };
             responses: {
@@ -1349,51 +2239,34 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            [key: string]: unknown;
-                        };
+                        "application/json": components["schemas"]["EvmSwapTradeAPIResponse"];
                     };
                 };
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/tx/swap/uniswap_v2": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Uniswap V2-style swap (EVM) */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/json": components["schemas"]["UniswapV2SwapRequest"];
-                };
-            };
-            responses: {
-                /** @description Swap pipeline result */
-                200: {
+                /** @description Invalid swap request or policy rejection */
+                400: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            [key: string]: unknown;
-                        };
+                        "text/plain": components["schemas"]["ErrorText"];
+                    };
+                };
+                /** @description Method not allowed */
+                405: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ErrorText"];
+                    };
+                };
+                /** @description Asset refresh / oracle temporarily unavailable */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ErrorText"];
                     };
                 };
             };
@@ -1404,7 +2277,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/tx/swap/solana-jup": {
+    "/api/v1/tx/swap/solana": {
         parameters: {
             query?: never;
             header?: never;
@@ -1413,7 +2286,16 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Jupiter swap on Solana */
+        /**
+         * Managed Solana same-chain swap
+         * @description Managed same-chain swap entry for **Solana**.
+         *
+         *     Notes:
+         *     - The sandbox uses Jupiter first and may fall back to OKX.
+         *     - `token_in` can be omitted or set to `native` for SOL.
+         *     - `token_out` can be `native` for SOL.
+         *     - `amount_in_wei` must fit within uint64.
+         */
         post: {
             parameters: {
                 query?: never;
@@ -1421,7 +2303,7 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: {
+            requestBody: {
                 content: {
                     "application/json": components["schemas"]["JupiterSwapRequest"];
                 };
@@ -1433,9 +2315,34 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            [key: string]: unknown;
-                        };
+                        "application/json": components["schemas"]["JupiterSwapResponse"];
+                    };
+                };
+                /** @description Invalid swap request or policy rejection */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ErrorText"];
+                    };
+                };
+                /** @description Method not allowed */
+                405: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ErrorText"];
+                    };
+                };
+                /** @description Asset refresh / oracle temporarily unavailable */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ErrorText"];
                     };
                 };
             };
@@ -1446,7 +2353,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/tx/swap/sui-cetus": {
+    "/api/v1/tx/swap/sui": {
         parameters: {
             query?: never;
             header?: never;
@@ -1456,8 +2363,8 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Cetus swap on Sui (WIP)
-         * @description Handler body not yet implemented; may return **200 with empty body** after POST.
+         * Managed Sui same-chain swap
+         * @description Managed same-chain swap entry for **Sui** via Cetus.
          */
         post: {
             parameters: {
@@ -1466,21 +2373,47 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["CetusSwapRequest"];
+                };
+            };
             responses: {
-                /** @description Placeholder response; often empty until implemented */
+                /** @description Cetus swap result */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["CetusSwapResponse"];
+                    };
                 };
-                /** @description Method not POST */
+                /** @description Invalid swap request or policy rejection */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ErrorText"];
+                    };
+                };
+                /** @description Method not allowed */
                 405: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "text/plain": components["schemas"]["ErrorText"];
+                    };
+                };
+                /** @description Asset refresh / oracle temporarily unavailable */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ErrorText"];
+                    };
                 };
             };
         };
@@ -1502,6 +2435,11 @@ export interface paths {
         /**
          * LI.FI Cross-chain Quote Estimation
          * @description Estimate cross-chain/swap between any chain and any token, returning estimated time, available routes, and estimated costs.
+         *
+         *     **AGENT INSTRUCTION - Optional Solana Transit (EVM to Sui):**
+         *     Direct cross-chain from EVM to Sui may take up to 15 minutes. To optimize time (reducing to ~3 minutes), you can optionally route through Solana. If you choose this optimization, you MUST manually orchestrate a two-step process:
+         *     1. Quote for EVM to Solana (Target token MUST be USDC on Solana).
+         *     2. Quote for Solana to Sui (Use the estimated output amount from the first quote as the input for this second quote).
          */
         post: {
             parameters: {
@@ -1551,6 +2489,51 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/tx/bridge/lifi/tokens": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * LI.FI Supported Tokens
+         * @description Query supported tokens for specific chains.
+         *     **AGENT INSTRUCTION:** ALWAYS call this endpoint to verify token support before a bridge quote or execution. If cross-chain operations fail (especially for stablecoins like USDT), use this to find the exact supported contract address.
+         */
+        get: {
+            parameters: {
+                query: {
+                    /** @description Comma-separated LI.FI chain IDs (e.g., "1,56,137") */
+                    chains: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description List of supported tokens */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            [key: string]: unknown;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/tx/bridge/lifi/execute": {
         parameters: {
             query?: never;
@@ -1563,6 +2546,23 @@ export interface paths {
         /**
          * LI.FI Cross-chain Execution
          * @description Execute cross-chain transaction, sign and broadcast. Includes possible intermediate routes.
+         *
+         *     **AGENT INSTRUCTION:** This API will wait synchronously for up to 1 minute (and possibly up to 20 minutes) for the bridge transaction to complete.
+         *     - If the bridge is successfully executed within 1 minute, it returns `success: true` and `status: "DONE"`.
+         *     - If the bridge transaction takes longer than 1 minute, the API will return early with `success: true` and `status: "PENDING"`. In this case, the bridge is still executing properly. You MUST NOT retry the execution. Instead, you MUST extract the `final_status_url` from the response and periodically query that URL to check the actual bridge status.
+         *     - **NEVER silently retry this API.** If you think a retry is necessary (e.g. due to a timeout or failure), you MUST first ask the user to check the block explorer to verify if the transaction was already executed on-chain. You MUST obtain explicit user approval before attempting any retry.
+         *
+         *     **AGENT INSTRUCTION - Optional Solana Transit (EVM to Sui):**
+         *     Direct cross-chain from EVM to Sui may take up to 15 minutes. To optimize time (reducing to ~3 minutes), you can optionally route through Solana. If you choose this optimization, you MUST manually orchestrate a two-step process:
+         *     1. **Stage 1 (EVM -> Solana):**
+         *        - Call `/api/v1/tx/bridge/lifi/quote` then `/api/v1/tx/bridge/lifi/execute` with `from_chain_id` (EVM) and `to_chain_id` (Solana).
+         *        - Target token MUST be USDC on Solana (`EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v`).
+         *        - **CRITICAL PRE-CHECK:** Ensure the intermediate Solana wallet has sufficient native SOL (at least 0.005 SOL) BEFORE executing Stage 1. This SOL is required to automatically create the Associated Token Account (ATA) for USDC upon receiving funds, and to pay for gas in Stage 2.
+         *        - Wait for the API response. If `PENDING`, poll `final_status_url` until "DONE".
+         *     2. **Stage 2 (Solana -> Sui):**
+         *        - After Stage 1 is "DONE", call `/quote` then `/execute` again with `from_chain_id` (Solana) and `to_chain_id` (Sui).
+         *        - Use the exact received USDC amount from Stage 1 as the input `amount` for Stage 2.
+         *        - Handle `PENDING` status by polling `final_status_url` as usual.
          */
         post: {
             parameters: {
@@ -1612,7 +2612,397 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/tx/bridge/lifi/status": {
+    "/api/v1/market/ticker": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get ticker for a specific trading pair
+         * @description Retrieves the latest price, 24h high/low, and 24h volume.
+         *     The `symbol` parameter corresponds to the exchange's `instId`.
+         *     Always note the `instId` from the response for precision in other endpoints.
+         */
+        get: {
+            parameters: {
+                query: {
+                    /**
+                     * @description Trading pair symbol or instrument ID.
+                     *     MANDATORY RULE: If this is the first time you are querying market data in this session, or if you are unsure of the exact format, you MUST first call `POST /api/v1/market/filter` using `baseCcy` to retrieve the correct `instId` (e.g., 'BTC-USDT' or 'BTC-USDT-SWAP'). Use the exact `instId` returned by the filter endpoint.
+                     */
+                    symbol: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK. The `data` array contains ticker objects. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["MarketDataResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/market/candles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get recent and historical K-line (OHLCV) data
+         * @description Retrieves candlestick data. Returns recent data by default.
+         *     Will automatically route to history-candles if pagination reaches far enough back.
+         */
+        get: {
+            parameters: {
+                query: {
+                    /**
+                     * @description Trading pair symbol or instrument ID.
+                     *     MANDATORY RULE: If this is the first time you are querying market data in this session, or if you are unsure of the exact format, you MUST first call `POST /api/v1/market/filter` using `baseCcy` to retrieve the correct `instId`.
+                     */
+                    symbol: string;
+                    /** @description Timeframe of the candlestick. Options include: '1m', '5m', '15m', '1H', '4H', '1D'. */
+                    bar?: "1m" | "5m" | "15m" | "1H" | "4H" | "1D";
+                    /** @description Number of results to return. Default is 100. */
+                    limit?: number;
+                    /** @description Pagination: request older data, millisecond timestamp. */
+                    after?: string;
+                    /** @description Pagination: request newer data, millisecond timestamp. */
+                    before?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK. `data` is an array of `[ts, o, h, l, c, vol, volCcy, volCcyQuote, confirm]` arrays. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["MarketDataResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/market/books": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get order book depth
+         * @description Retrieves the current order book depth (bids and asks) to assess liquidity and slippage.
+         */
+        get: {
+            parameters: {
+                query: {
+                    /**
+                     * @description Trading pair symbol or instrument ID.
+                     *     MANDATORY RULE: If this is the first time you are querying market data in this session, or if you are unsure of the exact format, you MUST first call `POST /api/v1/market/filter` using `baseCcy` to retrieve the correct `instId`.
+                     */
+                    symbol: string;
+                    /** @description Number of bids and asks to return per side. Max is 400. */
+                    sz?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK. `data` array contains objects with `asks`, `bids`, and `ts`. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["MarketDataResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/market/trades": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get recent trades
+         * @description View recent individual trades to judge short-term volatility and trade density.
+         */
+        get: {
+            parameters: {
+                query: {
+                    /**
+                     * @description Trading pair symbol or instrument ID.
+                     *     MANDATORY RULE: If this is the first time you are querying market data in this session, or if you are unsure of the exact format, you MUST first call `POST /api/v1/market/filter` using `baseCcy` to retrieve the correct `instId`.
+                     */
+                    symbol: string;
+                    /** @description Number of recent trades to retrieve. Default is 20, max is 500. */
+                    limit?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK. `data` array contains trade objects like `tradeId`, `px`, `sz`, `side`, `ts`. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["MarketDataResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/market/funding-rate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get perpetual swap funding rate
+         * @description Assesses long/short crowding and holding cost pressure.
+         *     Only applies to perpetual swaps (`*-SWAP`).
+         */
+        get: {
+            parameters: {
+                query: {
+                    /**
+                     * @description Perpetual swap instrument ID. MUST end with '-SWAP'.
+                     *     MANDATORY RULE: If this is the first time you are querying market data in this session, or if you are unsure of the exact format, you MUST first call `POST /api/v1/market/filter` using `baseCcy` to retrieve the correct `instId`.
+                     */
+                    symbol: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK. `data` contains `instId`, `fundingRate`, `nextFundingRate`, etc. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["MarketDataResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/market/open-interest": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Open Interest (OI)
+         * @description Observe market position scale changes for derivatives.
+         */
+        get: {
+            parameters: {
+                query: {
+                    /** @description Instrument type. Must be SWAP, FUTURES, or OPTION. */
+                    inst_type: "SWAP" | "FUTURES" | "OPTION";
+                    /**
+                     * @description Specific instrument ID.
+                     *     MANDATORY RULE: If this is the first time you are querying market data in this session, or if you are unsure of the exact format, you MUST first call `POST /api/v1/market/filter` using `baseCcy` to retrieve the correct `instId`.
+                     */
+                    symbol?: string;
+                    /** @description Underlying asset (e.g. 'BTC-USDT'). Useful for FUTURES to get all related contracts. */
+                    uly?: string;
+                    /** @description Instrument family (e.g. 'BTC-USDT'). */
+                    inst_family?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK. `data` contains OI records. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["MarketDataResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/market/price-limit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get price limits
+         * @description Retrieves the maximum buy price and minimum sell price to avoid immediate order rejection.
+         */
+        get: {
+            parameters: {
+                query: {
+                    /**
+                     * @description Trading pair symbol or instrument ID.
+                     *     MANDATORY RULE: If this is the first time you are querying market data in this session, or if you are unsure of the exact format, you MUST first call `POST /api/v1/market/filter` using `baseCcy` to retrieve the correct `instId`.
+                     */
+                    symbol: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK. `data` contains `buyLmt` and `sellLmt`. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["MarketDataResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/market/risk/check": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get DEX market risk check
+         * @description Retrieves the risk information for a specific DEX token contract address.
+         *     Note: DO NOT use `market/filter` to get the token contract address, as it only returns CEX trading pairs (e.g., BTC-USDT).
+         *     To obtain the correct on-chain `tokenContractAddress`, use the `/api/v1/tx/bridge/lifi/tokens` endpoint instead.
+         */
+        get: {
+            parameters: {
+                query: {
+                    /**
+                     * @description Chain ID of the network (e.g., '1' for Ethereum).
+                     *     Note for Non-EVM chains:
+                     *     - Use '501' for Solana.
+                     *     - Use '784' for Sui.
+                     */
+                    chainId: string;
+                    /** @description The on-chain smart contract address of the token (e.g., '0xA0b8...'). */
+                    tokenContractAddress: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK. Returns risk check data from the provider. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            [key: string]: unknown;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/market/filter": {
         parameters: {
             query?: never;
             header?: never;
@@ -1622,8 +3012,9 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * LI.FI Cross-chain Status Query
-         * @description Poll for the latest status of an asynchronous cross-chain task by UID.
+         * Market filter / Candidate pool
+         * @description Advanced filtering to find top tokens or build candidate pools based on volume, funding rates, etc.
+         *     Check `MarketFilterRequest` for payload details.
          */
         post: {
             parameters: {
@@ -1634,21 +3025,139 @@ export interface paths {
             };
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["LifiStatusRequest"];
+                    "application/json": components["schemas"]["MarketFilterRequest"];
                 };
             };
             responses: {
-                /** @description Status result */
+                /** @description OK. `data` array contains summary objects with fields like `instId`, `volUsd24h`, `fundingRate`. */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["LifiStatusResponse"];
+                        "application/json": components["schemas"]["MarketDataResponse"];
                     };
                 };
-                /** @description Missing or invalid parameters */
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/market/surf/settoken": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Set Surf API Token
+         * @description Saves the Surf API token to memory and persists it to `.env.clay` (`MARKET_INFO_SURF_TOKEN`).
+         *     This token is required to use the `/api/v1/market/moreinfo` endpoint.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** @description The Surf API key */
+                        token: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Token saved successfully */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            success?: boolean;
+                            message?: string;
+                        };
+                    };
+                };
+                /** @description Bad request (missing token) */
                 400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ErrorText"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/market/moreinfo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Surf Market News Info
+         * @description If the user needs more detailed market information or real-time social media insights, you should try calling this endpoint.
+         *     Query market news and information using Surf's chat completions API.
+         *     If the Surf token is not set, it will return an error instructing the user to generate one.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** @description The natural language question about the market */
+                        question: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Surf API response containing market info or an error if the token is missing. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            [key: string]: unknown;
+                        };
+                    };
+                };
+                /** @description Bad request (missing question) */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ErrorText"];
+                    };
+                };
+                /** @description Internal server error calling Surf API */
+                500: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -2004,6 +3513,28 @@ export interface components {
         } & {
             [key: string]: unknown;
         };
+        /** @description Partial local policy update payload. Unspecified fields remain unchanged. */
+        LocalPolicyUpdateRequest: {
+            max_amount_per_tx_usd?: number;
+            daily_limit_usd?: number;
+            daily_max_tx_count?: number;
+            whitelist_to?: components["schemas"]["AddressNote"][];
+            blacklist_to?: components["schemas"]["AddressNote"][];
+            /** Format: int64 */
+            pin_ttl_seconds?: number;
+            /** @enum {string} */
+            unpriced_asset_policy?: "allow" | "block";
+            block_high_risk_tokens?: boolean;
+            allow_blind_sign?: boolean;
+            strict_plain_text?: boolean;
+            keep_share2_resident?: boolean;
+            personal_sign_keyword_blacklist?: string[];
+        };
+        LocalPolicyUpdateResponse: {
+            /** @example policy_updated */
+            status: string;
+            policy: components["schemas"]["Policy"];
+        };
         UsageSnapshot: {
             local_spent_wei?: string;
             local_spent_usd?: number;
@@ -2075,6 +3606,54 @@ export interface components {
             policy?: components["schemas"]["Policy"];
         } & {
             [key: string]: unknown;
+        };
+        /**
+         * @description Unified market data response.
+         *     Agent should ALWAYS look for `instId` in the `data` payload if it needs to identify the instrument for subsequent calls.
+         *     Typical fields in `data`:
+         *     - Ticker: `instId`, `last`, `open24h`, `high24h`, `low24h`, `vol24h`, `ts`
+         *     - Candles: array of `[ts, o, h, l, c, vol, volCcy, volCcyQuote, confirm]`
+         *     - Books: `asks`, `bids`, `ts`
+         *     - Trades: `tradeId`, `px`, `sz`, `side`, `ts`
+         *     - Funding Rate: `instId`, `fundingRate`, `nextFundingRate`, `realizedRate`, `fundingTime`, `nextFundingTime`
+         *     - Open Interest: `instType`, `instId`, `oi`, `oiCcy`, `ts`
+         *     - Price Limit: `instId`, `buyLmt`, `sellLmt`, `ts`
+         *     - Filter (MCP): `rank`, `instId`, `last`, `chg24hPct`, `volUsd24h`, `oiUsd`, `fundingRate`, `sortVal`
+         */
+        MarketDataResponse: {
+            /** @description Data source provider name, e.g., "okx" */
+            provider?: string;
+            /** @description Trading pair symbol, e.g., "BTC-USDT" */
+            symbol?: string;
+            /** @description Actual market data payload. Structure depends on the specific endpoint called. */
+            data?: {
+                [key: string]: unknown;
+            };
+        };
+        /**
+         * @description Request for market filtering and candidate pool building.
+         *     `inst_type` is required.
+         *     `filter_params` allows custom conditions like sorting and minimum volume thresholds.
+         */
+        MarketFilterRequest: {
+            /**
+             * @description Instrument type. Required. Options: SPOT, SWAP, FUTURES
+             * @enum {string}
+             */
+            inst_type: "SPOT" | "SWAP" | "FUTURES";
+            /**
+             * @description Optional filters and sorting conditions.
+             *     CRITICAL USE CASE: Use this endpoint as a dictionary to resolve the exact `instId`.
+             *     Pass `baseCcy` (e.g., "BTC") here to get the exchange's required format (e.g., "BTC-USDT" or "BTC-USDT-SWAP").
+             *     Supported keys include:
+             *     - `baseCcy`: String, base currency to search (e.g. "BTC", "ETH").
+             *     - `quoteCcy`: String, quote currency (e.g. "USDT").
+             *     - `volUsd24h`: String, minimum 24h USD volume threshold (e.g. "10000000").
+             *     - `sortVal`: String, field to sort by. Options: `volUsd24h`, `chg24hPct`, `fundingRate`.
+             */
+            filter_params?: {
+                [key: string]: unknown;
+            };
         };
         WalletInitRequest: {
             /** @description Optional internal PIN used to seed the local wallet during bootstrap. */
@@ -2165,68 +3744,297 @@ export interface components {
             signature?: string;
             digest?: string;
         };
+        /**
+         * @description Managed transfer request. Use this endpoint for native coin transfers and token transfers.
+         *     Amount fields are decimal strings in the smallest unit for the selected asset.
+         */
         TransferRequest: {
+            /** @description Source chain name, for example `ethereum`, `bsc`, `base`, `solana`, `sui`, `tron`, or `bitcoin`. */
             chain: string;
+            /** @description Optional bound wallet UID for audit and policy context. */
             uid?: string;
+            /** @description Recipient address on the selected chain. */
             to: string;
+            /** @description Amount to send as a positive decimal string in the asset smallest unit (wei, lamports, MIST, satoshis, token base units, etc.). */
             amount_wei: string;
+            /** @description Optional token contract/mint/coin type. Omit or leave empty for native coin transfer. For ERC20/TIP20/SPL/Sui coin transfers, use the exact token identifier for that chain. */
             token_contract?: string;
+            /** @description Optional Sui gas budget as a decimal string in MIST. */
             sui_gas_budget?: string;
+            /** @description Set by an agent only after explicit user confirmation for this exact transfer. */
+            confirmed_by_user?: boolean;
+            /** @description Optional relay approval id used by approved-loop execution flows. */
+            approval_id?: string;
+            /** @description Optional relay execution token paired with `approval_id`. */
+            execution_token?: string;
         };
+        /**
+         * @description Managed EVM contract call. This signs and broadcasts one EIP-1559 transaction.
+         *     Do not use this for native or token transfers; use `/api/v1/tx/transfer` instead.
+         */
         ManagedEVMInvokeRequest: {
+            /** @description Optional bound wallet UID for audit and policy context. */
             uid?: string;
-            /** @description Defaults to bsc if omitted */
+            /** @description EVM chain name. Defaults to `bsc` if omitted. Must be a supported EVM chain. */
             chain?: string;
-            to?: string;
-            /** @description Wei as decimal string */
+            /** @description Optional signing mode hint. Usually omit for managed invoke. */
+            sign_mode?: string;
+            /** @description Target contract or externally owned account address. Contract creation is not supported. */
+            to: string;
+            /** @description Native coin value in wei as a decimal string. Defaults to `0`. */
             value?: string;
-            /** @description Calldata hex */
+            /** @description Hex calldata for the contract call, with or without `0x`. */
             data?: string;
+            /** @description Set by an agent only after explicit user confirmation for this exact invoke. */
             confirmed_by_user?: boolean;
         };
-        UniswapV3SwapRequest: {
-            chain?: string;
+        /**
+         * @description Managed Solana transaction invoke. Provide an unsigned transaction or transaction payload in base64 or hex.
+         *     One of `unsigned_tx_base64`, `tx_payload_base64`, `data`, `unsigned_tx_hex`, or `tx_payload_hex` is required.
+         */
+        ManagedSolInvokeRequest: {
+            /** @description Optional bound wallet UID for audit and policy context. */
             uid?: string;
-            router?: string;
-            token_in?: string;
-            token_out?: string;
-            fee?: number;
-            recipient?: string;
-            amount_in_wei?: string;
-            amount_out_min_wei?: string;
-            deadline_unix?: string;
-            sqrt_price_limit_x96?: string;
-            path_hex?: string;
-        };
-        UniswapV2SwapRequest: {
+            /** @description Must be `solana` or omitted. */
             chain?: string;
-            uid?: string;
-            router?: string;
-            token_in?: string;
-            token_out?: string;
-            fee?: number;
-            recipient?: string;
-            amount_in_wei?: string;
-            amount_out_min_wei?: string;
-            deadline_unix?: string;
-            path_hex?: string;
+            /** @description Optional signing mode hint. Usually omit for managed invoke. */
+            sign_mode?: string;
+            /** @description Optional target/program address used for policy/audit context. */
+            to?: string;
+            /** @description Optional native SOL value in lamports as a decimal string for policy/audit context. */
+            value?: string;
+            /** @description Optional instruction or transaction data used by compatible callers. */
+            data?: string;
+            /** @description Unsigned Solana transaction encoded as base64. */
+            unsigned_tx_base64?: string;
+            /** @description Unsigned Solana transaction encoded as hex. */
+            unsigned_tx_hex?: string;
+            /** @description Solana transaction payload encoded as base64. */
+            tx_payload_base64?: string;
+            /** @description Solana transaction payload encoded as hex. */
+            tx_payload_hex?: string;
+            /** @description Set by an agent only after explicit user confirmation for this exact invoke. */
+            confirmed_by_user?: boolean;
         };
+        /**
+         * @description Managed EVM same-chain swap request.
+         *
+         *     Supported `chain` values:
+         *     - ethereum, optimism, bsc, polygon, monad, base, arbitrum, avalanche, zksync, linea
+         */
+        EvmSwapTradeAPIRequest: {
+            /**
+             * @description Target EVM chain. Must be one of ethereum/optimism/bsc/polygon/monad/base/arbitrum/avalanche/zksync/linea.
+             * @enum {string}
+             */
+            chain: "ethereum" | "optimism" | "bsc" | "polygon" | "monad" | "base" | "arbitrum" | "avalanche" | "zksync" | "linea";
+            /** @description Optional bound wallet UID (used for auditing / policy context). */
+            uid?: string;
+            /** @description Input token contract address, or `native` for the chain native asset. Can be omitted to mean native. */
+            token_in?: string;
+            /** @description Output token contract address, or `native` for the chain native asset. Required. */
+            token_out: string;
+            /** @description Input amount as a positive decimal string in the input asset smallest unit. */
+            amount_in_wei: string;
+            /** @description Optional routing preference hint for Uniswap-compatible paths, e.g. `BEST_PRICE`. */
+            routing_preference?: string;
+            /** @description Optional protocol allowlist for routing (case-insensitive; e.g. V2, V3, UNISWAPX). */
+            protocols?: string[];
+            /** @description Optional provider-specific urgency hint. */
+            urgency?: string;
+            /** @description Optional auto slippage mode, e.g. `DEFAULT` or `AUTO`. */
+            auto_slippage?: string;
+            /**
+             * Format: int64
+             * @description Optional slippage tolerance in basis points (bps). When set, overrides auto slippage.
+             */
+            slippage_tolerance?: number;
+            /** @description Optional Permit2 allowance amount setting for compatible providers, e.g. `FULL`. */
+            permit_amount?: string;
+        };
+        UniswapTradeTx: {
+            to: string;
+            from?: string;
+            data: string;
+            value?: string;
+            /** Format: int64 */
+            chainId?: number;
+        };
+        UniswapTradeExecutionResult: {
+            tx?: components["schemas"]["UniswapTradeTx"];
+            submitted_id?: string;
+            tx_hash?: string;
+        };
+        UniswapTradeOrderResponse: {
+            requestId?: string;
+            orderId?: string;
+            orderStatus?: string;
+        };
+        /**
+         * @description Managed EVM swap execution result.
+         *
+         *     The sandbox tries providers in order and returns the first successful result:
+         *     - `0x`
+         *     - `okx`
+         *     - `uniswap`
+         *     - `lifi`
+         *
+         *     Depending on provider and route, the response may include approval-reset,
+         *     approval, permit, order, and/or swap execution details.
+         */
+        EvmSwapTradeAPIResponse: {
+            /** @description Winning provider name */
+            provider?: string;
+            chain: string;
+            from: string;
+            request_id?: string;
+            /** @description Routing method returned by provider when available. */
+            routing?: string;
+            token_in: string;
+            token_out: string;
+            amount_in_wei: string;
+            approval_required: boolean;
+            approval_reset?: components["schemas"]["UniswapTradeExecutionResult"];
+            approval?: components["schemas"]["UniswapTradeExecutionResult"];
+            permit?: components["schemas"]["UniswapTradeExecutionResult"];
+            order?: components["schemas"]["UniswapTradeOrderResponse"];
+            swap?: components["schemas"]["UniswapTradeExecutionResult"];
+        };
+        /**
+         * @description Managed Solana same-chain swap request.
+         *
+         *     Notes:
+         *     - `chain` defaults to `solana` if omitted.
+         *     - `token_in` can be omitted or set to `native` (SOL).
+         *     - `token_out` can be set to `native` (SOL).
+         *     - `slippage_bps` defaults to `50` when omitted/0.
+         *     - The primary provider is Jupiter and the sandbox may fall back to OKX.
+         *     - `as_legacy_transaction` is no longer supported and should be omitted or `false`.
+         */
         JupiterSwapRequest: {
+            /** @description Must be `solana` (defaults to solana if omitted). */
             chain?: string;
+            /** @description Optional bound wallet UID (used for auditing / policy context). */
             uid?: string;
+            /** @description Input token symbol or mint. Omit or use `native` for SOL. */
             token_in?: string;
-            token_out?: string;
-            amount_in_wei?: string;
+            /** @description Output token symbol or mint. Use `native` for SOL. */
+            token_out: string;
+            /** @description Amount in (decimal string, smallest unit). Must fit uint64 for Solana. */
+            amount_in_wei: string;
+            /**
+             * Format: int64
+             * @description Slippage in basis points; defaults to 50.
+             */
             slippage_bps?: number;
+            /** @description Optional payer override forwarded to the routing provider. */
+            payer?: string;
+            /** @description Optional receiver override forwarded to the routing provider. */
+            receiver?: string;
+            /** @description Optional router denylist forwarded to the routing provider. */
+            exclude_routers?: string[];
+            /** @description Optional DEX denylist forwarded to the routing provider. */
+            exclude_dexes?: string[];
+            /** @description Deprecated. Legacy transactions are no longer supported; omit or set `false`. */
             as_legacy_transaction?: boolean;
+            /** @description Whether to wrap/unwrap SOL (defaults true). */
             wrap_and_unwrap_sol?: boolean;
+            /** @description Whether to use shared accounts (defaults true). */
             use_shared_accounts?: boolean;
+            /** @description Whether to enable dynamic compute unit limit (defaults true). */
             dynamic_compute_unit_limit?: boolean;
         };
-        HaedalTxBytesExecuteRequest: {
+        /**
+         * @description Managed Solana swap execution result.
+         *
+         *     The primary path uses Jupiter v2 order + execute. If Jupiter fails with a
+         *     retryable provider error, the sandbox may fall back to OKX. The response
+         *     shape is shared across both providers.
+         */
+        JupiterSwapResponse: {
+            /** @description Provider name */
+            provider?: string;
+            request_id?: string;
+            quote_id?: string;
+            router?: string;
+            mode?: string;
+            expire_at?: string;
+            /** @enum {string} */
+            chain: "solana";
+            from: string;
+            token_in: string;
+            token_out: string;
+            amount_in_wei: string;
+            /** Format: int64 */
+            slippage_bps: number;
+            in_amount?: string;
+            out_amount?: string;
+            other_amount_threshold?: string;
+            swap_mode?: string;
+            as_legacy_transaction: boolean;
+            used_versioned_tx: boolean;
+            /** @description The Jupiter program ID used by the built transaction. */
+            jupiter_program: string;
+            /** @description Signed swap transaction base64 (ready to submit). */
+            swap_tx_base64?: string;
+            /** @description Message bytes hex with 0x prefix. */
+            message_hex?: string;
+            submitted_id?: string;
+            signature?: string;
+            /** Format: int64 */
+            last_valid_block_height?: number;
+            sponsored: boolean;
+        };
+        /** @description Managed Sui same-chain swap request via Cetus. */
+        CetusSwapRequest: {
+            /** @description Must be `sui` (defaults to sui if omitted). */
+            chain?: string;
+            /** @description Optional bound wallet UID (used for auditing / policy context). */
             uid?: string;
-            txBytes?: string;
+            /** @description Input coin type or supported alias. */
+            token_in: string;
+            /** @description Output coin type or supported alias. */
+            token_out: string;
+            /** @description Amount in smallest units as a positive decimal string. */
+            amount_wei: string;
+            /**
+             * Format: double
+             * @description Optional slippage ratio. Defaults to `0.005` and must be `<= 0.5`.
+             */
+            slippage?: number;
+        };
+        /** @description Managed Sui Cetus swap execution result. */
+        CetusSwapResponse: {
+            /** @enum {string} */
+            chain: "sui";
+            from: string;
+            wallet: string;
+            token_in: string;
+            token_out: string;
+            amount_wei: string;
+            by_amount_in: boolean;
+            /** Format: double */
+            slippage: number;
+            request_id: string;
+            quote_amount_in?: string;
+            quote_amount_out?: string;
             tx_bytes_base64?: string;
+            digest?: string;
+            sponsored: boolean;
+        };
+        /**
+         * @description Sui invoke request. Provide transaction bytes in exactly one supported field.
+         *     The sandbox dry-runs, signs, and broadcasts the transaction.
+         *     One of `txBytes`, `tx_bytes_base64`, or `tx_bytes_hex` is required.
+         */
+        SuiTxBytesExecuteRequest: {
+            /** @description Optional bound wallet UID for audit and policy context. */
+            uid?: string;
+            /** @description Sui transaction bytes encoded as base64. Kept for compatibility with Sui SDK naming. */
+            txBytes?: string;
+            /** @description Sui transaction bytes encoded as base64. */
+            tx_bytes_base64?: string;
+            /** @description Sui transaction bytes encoded as hex. */
             tx_bytes_hex?: string;
         };
         HaedalOptionedRequest: {
@@ -2238,23 +4046,264 @@ export interface components {
                 [key: string]: unknown;
             };
         };
+        /** @description Sui transaction execution response. */
+        SuiTxResponse: {
+            /** @enum {string} */
+            chain: "sui";
+            from: string;
+            action: string;
+            amount?: string;
+            nft_obj?: string;
+            digest?: string;
+            sponsored: boolean;
+        };
+        SafuSkillPreloadItem: {
+            id?: string;
+            name?: string;
+            /** @description Cache state for this item, such as `cached`, `downloaded`, or `already_initialized`. */
+            status?: string;
+            local_path?: string;
+        } & {
+            [key: string]: unknown;
+        };
+        SafuSkillPreloadResponse: {
+            /** @example ok */
+            status: string;
+            /** Format: int64 */
+            preloaded_count: number;
+            skills: components["schemas"]["SafuSkillPreloadItem"][];
+        };
+        SafuSkillResolveResponse: {
+            /** @example ok */
+            status?: string;
+            /** @description Where the result came from, such as `safuskill` or `local_cache_stale`. */
+            source?: string;
+            name?: string;
+            id?: string;
+            installed?: boolean;
+            local_path?: string;
+            metadata_path?: string;
+            reload_needed?: boolean;
+            update_error?: string;
+        } & {
+            [key: string]: unknown;
+        };
+        SafuSkillReadResponse: {
+            /** @example ok */
+            status: string;
+            name: string;
+            local_path: string;
+            /** @description Raw SKILL.md content loaded from the local sandbox cache. */
+            content: string;
+        };
+        X402ServiceSearchRequest: {
+            /** @description Natural-language intent or token keyword, such as `I want to buy PEPE token`. Optional when structured fields are provided. */
+            query?: string;
+            /** @description Optional structured intent extracted by the agent, such as `buy` or `access`. */
+            intent?: string;
+            /** @description Optional asset or token keyword extracted by the agent, such as `pepe` or `usdc`. */
+            asset?: string;
+            /** @description Optional service keyword extracted by the agent, such as `weather api` or `price feed`. */
+            service?: string;
+            /** @description Optional network filter, such as `base` or `base-sepolia`. */
+            network?: string;
+            /**
+             * @description Bazaar resource type filter. Defaults to `http`.
+             * @example http
+             */
+            resource_type?: string;
+            limit?: number;
+            /** @description Ignore the local cache and refresh from Coinbase Bazaar before searching. */
+            force_refresh?: boolean;
+            /** @description If upstream refresh fails, allow a stale cache hit to be returned when available. */
+            include_stale?: boolean;
+        };
+        X402QueryPlan: {
+            intent?: string;
+            asset_keywords?: string[];
+            service_keywords?: string[];
+            topic_keywords?: string[];
+            network?: string;
+            should_search: boolean;
+            trigger_reason?: string;
+        };
+        X402AcceptRequirement: {
+            scheme?: string;
+            network?: string;
+            maxTimeoutSeconds?: number;
+            asset?: string;
+            amount?: string;
+            payTo?: string;
+        };
+        X402SearchResult: {
+            resource?: string;
+            type?: string;
+            title?: string;
+            description?: string;
+            last_updated_at?: string;
+            score?: number;
+            matched_fields?: string[];
+            accepts?: components["schemas"]["X402AcceptRequirement"][];
+            metadata?: {
+                [key: string]: unknown;
+            };
+        } & {
+            [key: string]: unknown;
+        };
+        X402ServiceSearchResponse: {
+            /** @example ok */
+            status: string;
+            /** @description `cache`, `upstream`, `cache_stale`, or `skipped`. */
+            source: string;
+            query: string;
+            keywords: string[];
+            should_search: boolean;
+            query_plan: components["schemas"]["X402QueryPlan"];
+            network?: string;
+            resource_type: string;
+            cache_path: string;
+            /** Format: date-time */
+            cache_refreshed_at?: string;
+            cache_stale: boolean;
+            refreshed: boolean;
+            total_indexed: number;
+            matched_count: number;
+            resources: components["schemas"]["X402SearchResult"][];
+            upstream_error?: string;
+        };
+        X402ExecuteRequest: {
+            /** @description Full x402 resource URL to call. */
+            resource: string;
+            /** @description HTTP method. Defaults to `GET`. */
+            method?: string;
+            /** @description Optional query string parameters to append to the resource URL. */
+            query?: {
+                [key: string]: string;
+            };
+            /** @description Optional request headers to forward, excluding hop-by-hop headers. */
+            headers?: {
+                [key: string]: string;
+            };
+            /** @description Optional JSON request body. */
+            body_json?: {
+                [key: string]: unknown;
+            };
+            /** @description Optional text request body. */
+            body_text?: string;
+            /** @description Optional base64-encoded binary request body. */
+            body_base64?: string;
+            timeout_ms?: number;
+            max_response_bytes?: number;
+            /** @description Optional `PAYMENT-SIGNATURE` header value used when retrying a paid request. */
+            payment_signature?: string;
+        };
+        X402ExecuteResponse: {
+            /** @example ok */
+            status: string;
+            resource: string;
+            request_url: string;
+            method: string;
+            response_status: number;
+            content_type?: string;
+            response_headers?: {
+                [key: string]: unknown;
+            };
+            payment_required: boolean;
+            payment_required_raw?: string;
+            payment_response?: string;
+            body_text?: string;
+            body_json?: {
+                [key: string]: unknown;
+            };
+            body_base64?: string;
+            body_truncated?: boolean;
+        };
+        X402PaymentProofRequest: {
+            /** @description Raw `PAYMENT-REQUIRED` header value returned by a previous x402 request. */
+            payment_required: string;
+            /** @description Optional resource URL override to embed in the payment payload. */
+            resource?: string;
+            /** @description Optional network override when the challenge does not provide one. */
+            network?: string;
+            /** @description Reserved for future payment-method selection. */
+            method?: string;
+            /** @description Requested authorization lifetime. The sandbox clamps this to the challenge timeout when present. */
+            valid_for_seconds?: number;
+            /** @description Optional EIP-712 domain name override. */
+            domain_name?: string;
+            /** @description Optional EIP-712 domain version override. */
+            domain_version?: string;
+        };
+        X402PaymentProofResponse: {
+            /** @example ok */
+            status: string;
+            scheme: string;
+            network: string;
+            resource?: string;
+            /** @description Serialized payload to send as the `PAYMENT-SIGNATURE` request header. */
+            payment_signature: string;
+            payment_payload: {
+                [key: string]: unknown;
+            };
+            typed_data?: {
+                [key: string]: unknown;
+            };
+            signer_address: string;
+            /** Format: int64 */
+            valid_after: number;
+            /** Format: int64 */
+            valid_before: number;
+            nonce_hex: string;
+        };
+        X402PayAndExecuteRequest: components["schemas"]["X402ExecuteRequest"] & {
+            /** @description Optional network override used during proof construction. */
+            network?: string;
+            valid_for_seconds?: number;
+            domain_name?: string;
+            domain_version?: string;
+        };
+        X402PayAndExecuteResponse: {
+            /** @example ok */
+            status: string;
+            first_attempt?: components["schemas"]["X402ExecuteResponse"];
+            proof?: components["schemas"]["X402PaymentProofResponse"];
+            final?: components["schemas"]["X402ExecuteResponse"];
+        };
+        /**
+         * @description LI.FI quote and execution request. Use the same schema for `/quote` and `/execute`.
+         *
+         *     Required flow:
+         *     1. Call `/api/v1/tx/bridge/lifi/tokens?chains={from_chain_id}` and `/api/v1/tx/bridge/lifi/tokens?chains={to_chain_id}` first.
+         *     2. Use the exact supported token address/mint/coin type from the token response whenever possible.
+         *     3. Call `/api/v1/tx/bridge/lifi/quote`.
+         *     4. After explicit user confirmation, call `/api/v1/tx/bridge/lifi/execute` with the same field names.
+         *
+         *     For EVM -> Sui, ask the user whether to use `via_solana`. Direct EVM -> Sui may take about 15 minutes; EVM -> Solana -> Sui may take about 2-3 minutes.
+         */
         LifiBridgeRequest: {
-            uid?: string;
-            /** @description Source Chain ID (LI.FI standard ID). Common IDs: ETH: '1', BSC: '56', Base: '8453', Arbitrum: '42161', Optimism: '10', Polygon: '137', Solana: '1151111081099710', Sui: '9270000000000000', Bitcoin: '20000000000001'. For more, see https://docs.li.fi/introduction/chains */
+            /** @description Whether to route through Solana when bridging from EVM to Sui. Only applicable for EVM to Sui routes. */
+            via_solana?: boolean;
+            /** @description Source chain ID using LI.FI standard IDs. Common IDs: ETH: '1', BSC: '56', Base: '8453', Arbitrum: '42161', Optimism: '10', Polygon: '137', Solana: '1151111081099710', Sui: '9270000000000000', Bitcoin: '20000000000001'. For more, see https://docs.li.fi/introduction/chains */
             from_chain_id: string;
-            /** @description Source wallet address */
+            /** @description Source wallet address on `from_chain_id`. */
             from_address: string;
-            /** @description Source Token address or symbol */
+            /**
+             * @description Source token address, mint, coin type, or symbol.
+             *     **AGENT INSTRUCTION:** For tokens with multiple issuers (like USDT/USDC), ALWAYS prefer using the exact contract address instead of just the symbol. Before requesting a quote or executing a bridge, you MUST call `/api/v1/tx/bridge/lifi/tokens?chains={chainID}` to verify if the specific token address or symbol is supported on that chain. If a bridge quote or execution fails, verify the token support again.
+             */
             from_token: string;
-            /** @description Transaction amount (in smallest unit) */
+            /** @description Input amount as a positive decimal string in the source token smallest unit. */
             amount: string;
-            /** @description Target Chain ID (LI.FI standard ID). Common IDs are same as from_chain_id. */
+            /** @description Target chain ID using LI.FI standard IDs. Common IDs are same as from_chain_id. */
             to_chain_id: string;
-            /** @description Target wallet address */
+            /** @description Recipient wallet address on `to_chain_id`. */
             to_address: string;
-            /** @description Target Token address or symbol */
+            /**
+             * @description Target token address, mint, coin type, or symbol.
+             *     **AGENT INSTRUCTION:** Similarly, MUST call `/api/v1/tx/bridge/lifi/tokens?chains={chainID}` to verify if the specific token is supported on the target chain.
+             */
             to_token: string;
-            /** @description Slippage tolerance (optional, default 0.005) */
+            /** @description Optional slippage tolerance as a decimal ratio. Defaults to 0.005 (0.5%). */
             slippage?: number;
         };
         LifiRouteStep: {
@@ -2271,8 +4320,27 @@ export interface components {
             steps?: components["schemas"]["LifiRouteStep"][];
             /** @description Total estimated duration in seconds */
             estimated_duration?: number;
+            /** @description Human-readable input amount formatted by token decimals */
             amount_in?: string;
+            /** @description Human-readable output amount formatted by token decimals */
             amount_out?: string;
+            /** @description Raw input amount in smallest unit */
+            amount_in_raw?: string;
+            /** @description Raw output amount in smallest unit */
+            amount_out_raw?: string;
+            /** @description Input token symbol */
+            amount_in_symbol?: string;
+            /** @description Output token symbol */
+            amount_out_symbol?: string;
+            /** @description Input token decimals */
+            amount_in_decimals?: number;
+            /** @description Output token decimals */
+            amount_out_decimals?: number;
+            requested_amount?: string;
+            effective_amount?: string;
+            reserve_amount?: string;
+            adjusted_by_policy?: boolean;
+            user_friendly_reason?: string;
         };
         LifiExecuteStep: {
             from_chain_id?: string;
@@ -2284,21 +4352,18 @@ export interface components {
         LifiBridgeResponse: {
             uid?: string;
             success?: boolean;
-            message?: string;
-            steps?: components["schemas"]["LifiExecuteStep"][];
-            final_tx_hash?: string;
-            final_status_url?: string;
-        };
-        LifiStatusRequest: {
-            uid: string;
-        };
-        LifiStatusResponse: {
-            /** @description PENDING, DONE, FAILED, NOT_FOUND */
+            /** @description PENDING, DONE, FAILED */
             status?: string;
             message?: string;
             steps?: components["schemas"]["LifiExecuteStep"][];
             final_tx_hash?: string;
             final_status_url?: string;
+            requested_amount?: string;
+            effective_amount?: string;
+            reserve_amount?: string;
+            stage2_actual_received?: string;
+            adjusted_by_policy?: boolean;
+            user_friendly_reason?: string;
         };
     };
     responses: never;

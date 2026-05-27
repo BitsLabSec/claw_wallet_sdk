@@ -1,5 +1,5 @@
 import { parseEther, parseUnits, formatEther } from "ethers";
-import { ClawEthersSigner, createClawSandboxJsonRpcProvider } from "../dist/ethers.js";
+import { ClawEthersSigner, createClawSandboxJsonRpcProvider } from "../dist/evm/ethers.js";
 
 const sandboxUrl = process.env.CLAY_SANDBOX_URL ?? "http://127.0.0.1:9000";
 const sandboxToken = process.env.CLAY_AGENT_TOKEN?.trim() ?? "";

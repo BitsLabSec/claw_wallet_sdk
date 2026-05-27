@@ -19,7 +19,7 @@ import {
   clawChainToChainId,
   resolveClawEvmChain,
 } from "./evm-chain.js";
-import { ClawSandboxClient, type ClawSignerConfig } from "./sandbox.js";
+import { ClawSandboxClient, type ClawSignerConfig } from "../sandbox.js";
 
 function normalizeBaseUrl(url: string): string {
   return url.trim().replace(/\/+$/, "");

@@ -9,11 +9,11 @@ import { createClawWalletClient, buildPersonalSignBody } from "../dist/index.js"
 import {
   createClawSandboxPublicClient,
   recoverEvmPersonalSignAddress,
-} from "../dist/viem.js";
+} from "../dist/evm/viem.js";
 import {
   createClawSandboxJsonRpcProvider,
   recoverAddressFromPersonalSignEthers,
-} from "../dist/ethers.js";
+} from "../dist/evm/ethers.js";
 import { loadIntegrationConfig } from "./load-integration-config.mjs";
 
 /** On-chain / gas / balance failures (expected when wallet is empty). */

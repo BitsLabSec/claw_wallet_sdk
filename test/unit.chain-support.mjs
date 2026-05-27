@@ -5,7 +5,7 @@ import {
   chainIdToClawChain,
   clawChainToChainId,
   resolveClawEvmChain,
-} from "../dist/evm-chain.js";
+} from "../dist/evm/evm-chain.js";
 
 function installStatusStub(statusBody) {
   const calls = [];

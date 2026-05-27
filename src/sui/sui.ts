@@ -1,7 +1,25 @@
 import type { SignatureWithBytes } from "@mysten/sui/cryptography";
 
-import { bytesToHex, hexToBytes, toBase64 } from "./encoding.js";
-import { ClawSandboxClient, type ClawSignerConfig } from "./sandbox.js";
+import { bytesToHex, hexToBytes, toBase64 } from "../util/encoding.js";
+import { ClawSandboxClient, type ClawSignerConfig } from "../sandbox.js";
+import { type ClawInvokeResult } from "../util/operation-utils.js";
+import {
+  invokeSui,
+  invokeSuiHaedal,
+  swapSui,
+  type ClawSuiHaedalRequest,
+  type ClawSuiInvokeRequest,
+  type ClawSuiSwapRequest,
+  type ClawSuiSwapResponse,
+  type ClawSuiTxResponse,
+} from "./sui-ecology.js";
+export type {
+  ClawSuiHaedalRequest,
+  ClawSuiInvokeRequest,
+  ClawSuiSwapRequest,
+  ClawSuiSwapResponse,
+  ClawSuiTxResponse,
+} from "./sui-ecology.js";
 
 function toSerializedSuiSignature(rawSignatureHex: string, publicKeyHex?: string): string {
   if (!publicKeyHex) {
@@ -72,5 +90,17 @@ export class ClawSuiSigner {
       bytes: toBase64(bytes),
       signature: toSerializedSuiSignature(res.signature_hex, res.from),
     };
+  }
+
+  async invoke(request: ClawSuiInvokeRequest): Promise<ClawInvokeResult> {
+    return await invokeSui(this.client, request);
+  }
+
+  async invokeHaedal(request: ClawSuiHaedalRequest): Promise<ClawSuiTxResponse> {
+    return await invokeSuiHaedal(this.client, request);
+  }
+
+  async swap(request: ClawSuiSwapRequest): Promise<ClawSuiSwapResponse> {
+    return await swapSui(this.client, request);
   }
 }

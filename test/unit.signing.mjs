@@ -4,7 +4,7 @@
  */
 import assert from "node:assert/strict";
 
-import { buildPersonalSignBody } from "../dist/signing.js";
+import { buildPersonalSignBody } from "../dist/util/signing.js";
 
 const body = buildPersonalSignBody({
   chain: "ethereum",
