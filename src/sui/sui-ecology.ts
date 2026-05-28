@@ -9,7 +9,6 @@ export type ClawSuiInvokeRequest = Omit<Schema<"SuiTxBytesExecuteRequest">, "tx_
   txBytesHex?: string;
 };
 
-export type ClawSuiHaedalRequest = Schema<"HaedalOptionedRequest">;
 export type ClawSuiTxResponse = Schema<"SuiTxResponse">;
 
 export type ClawSuiSwapRequest = Omit<Schema<"CetusSwapRequest">, "token_in" | "token_out" | "amount_wei"> & {
@@ -55,22 +54,6 @@ export async function invokeSui(
     throw createSandboxError("Failed to invoke Sui transaction", response, error, {
       method: "POST",
       path: "/api/v1/tx/sui/invoke",
-    });
-  }
-  return data;
-}
-
-export async function invokeSuiHaedal(
-  client: ClawOperationClient,
-  request: ClawSuiHaedalRequest,
-): Promise<ClawSuiTxResponse> {
-  const { data, error, response } = await client.client.POST("/api/v1/tx/sui/haedal", {
-    body: withUid(request, client.config.uid),
-  });
-  if (!response.ok || !data) {
-    throw createSandboxError("Failed to invoke Sui Haedal action", response, error, {
-      method: "POST",
-      path: "/api/v1/tx/sui/haedal",
     });
   }
   return data;

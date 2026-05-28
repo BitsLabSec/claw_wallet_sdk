@@ -2143,52 +2143,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/tx/sui/haedal": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Execute a Haedal option-driven Sui action
-         * @description Registered Haedal helper route.
-         *
-         *     The request chooses a predefined `option` and passes free-form `body` fields.
-         *     The sandbox resolves the option into tx bytes, then signs and broadcasts the resulting Sui transaction.
-         */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/json": components["schemas"]["HaedalOptionedRequest"];
-                };
-            };
-            responses: {
-                /** @description Haedal execution result */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["SuiTxResponse"];
-                    };
-                };
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/tx/swap/evm": {
         parameters: {
             query?: never;
@@ -4036,15 +3990,6 @@ export interface components {
             tx_bytes_base64?: string;
             /** @description Sui transaction bytes encoded as hex. */
             tx_bytes_hex?: string;
-        };
-        HaedalOptionedRequest: {
-            uid?: string;
-            /** @description Haedal/Cetus skill option key */
-            option?: string;
-            defi?: string;
-            body?: {
-                [key: string]: unknown;
-            };
         };
         /** @description Sui transaction execution response. */
         SuiTxResponse: {

@@ -113,7 +113,6 @@ export class ClawWallet extends Sandbox.ClawSandboxClient {
     },
     sui: {
       invoke: (request: SuiOps.ClawSuiInvokeRequest) => this.invokeSui(request),
-      haedal: (request: SuiOps.ClawSuiHaedalRequest) => this.invokeSuiHaedal(request),
     },
   };
 
@@ -261,10 +260,6 @@ export class ClawWallet extends Sandbox.ClawSandboxClient {
 
   async invokeSui(request: SuiOps.ClawSuiInvokeRequest): Promise<OperationUtils.ClawInvokeResult> {
     return SuiOps.invokeSui(this, request);
-  }
-
-  async invokeSuiHaedal(request: SuiOps.ClawSuiHaedalRequest): Promise<SuiOps.ClawSuiTxResponse> {
-    return SuiOps.invokeSuiHaedal(this, request);
   }
 
   async swapEvm(request: EvmOps.ClawEvmSwapRequest): Promise<EvmOps.ClawEvmSwapResponse> {

@@ -6,16 +6,12 @@ import { ClawSandboxClient, type ClawSignerConfig } from "../sandbox.js";
 import { type ClawInvokeResult } from "../util/operation-utils.js";
 import {
   invokeSui,
-  invokeSuiHaedal,
   swapSui,
-  type ClawSuiHaedalRequest,
   type ClawSuiInvokeRequest,
   type ClawSuiSwapRequest,
   type ClawSuiSwapResponse,
-  type ClawSuiTxResponse,
 } from "./sui-ecology.js";
 export type {
-  ClawSuiHaedalRequest,
   ClawSuiInvokeRequest,
   ClawSuiSwapRequest,
   ClawSuiSwapResponse,
@@ -102,10 +98,6 @@ export class ClawSuiSigner {
 
   async invoke(request: ClawSuiInvokeRequest): Promise<ClawInvokeResult> {
     return await invokeSui(this.client, request);
-  }
-
-  async invokeHaedal(request: ClawSuiHaedalRequest): Promise<ClawSuiTxResponse> {
-    return await invokeSuiHaedal(this.client, request);
   }
 
   async swap(request: ClawSuiSwapRequest): Promise<ClawSuiSwapResponse> {
