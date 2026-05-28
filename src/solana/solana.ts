@@ -3,6 +3,7 @@ import { Buffer } from "buffer";
 import { PublicKey, Transaction, VersionedTransaction } from "@solana/web3.js";
 
 import { bytesToHex, hexToBytes } from "../util/encoding.js";
+import { ClawSDKError } from "../errors.js";
 import { ClawSandboxClient, type ClawSignerConfig } from "../sandbox.js";
 import { type ClawInvokeResult } from "../util/operation-utils.js";
 import {
@@ -67,7 +68,9 @@ export class ClawSolanaSigner {
     });
 
     if (!res.signature_hex) {
-      throw new Error("Claw Sandbox did not return a signature");
+      throw new ClawSDKError("Claw Sandbox did not return a signature", {
+        code: "CLAW_SIGNATURE_MISSING",
+      });
     }
 
     return attachSignature(transaction, this.publicKey, hexToBytes(res.signature_hex)) as T;
@@ -87,7 +90,9 @@ export class ClawSolanaSigner {
     });
 
     if (!res.signature_hex) {
-      throw new Error("Claw Sandbox did not return a signature");
+      throw new ClawSDKError("Claw Sandbox did not return a signature", {
+        code: "CLAW_SIGNATURE_MISSING",
+      });
     }
 
     return hexToBytes(res.signature_hex);

@@ -19,6 +19,7 @@ import {
   clawChainToChainId,
   resolveClawEvmChain,
 } from "./evm-chain.js";
+import { ClawSDKError, ClawValidationError } from "../errors.js";
 import { ClawSandboxClient, type ClawSignerConfig } from "../sandbox.js";
 
 function normalizeBaseUrl(url: string): string {
@@ -130,8 +131,9 @@ export function createClawAccount(config: ClawSignerConfig, address: Address): L
           ? Number(configuredChainId)
           : Number.NaN;
       if (!Number.isFinite(chainId) || chainId <= 0) {
-        throw new Error(
+        throw new ClawValidationError(
           "Claw viem account requires transaction.chainId or a known config.chain before signing",
+          { field: "chainId" },
         );
       }
       const txWithChainId = { ...transaction, chainId } as TransactionSerializable;
@@ -148,7 +150,9 @@ export function createClawAccount(config: ClawSignerConfig, address: Address): L
 
       const signature = res.signature_hex;
       if (!signature) {
-        throw new Error("Claw Sandbox did not return a signature");
+        throw new ClawSDKError("Claw Sandbox did not return a signature", {
+          code: "CLAW_SIGNATURE_MISSING",
+        });
       }
       const r = `0x${signature.slice(2, 66)}` as Hex;
       const s = `0x${signature.slice(66, 130)}` as Hex;

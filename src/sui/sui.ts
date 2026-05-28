@@ -1,6 +1,7 @@
 import type { SignatureWithBytes } from "@mysten/sui/cryptography";
 
 import { bytesToHex, hexToBytes, toBase64 } from "../util/encoding.js";
+import { ClawSDKError } from "../errors.js";
 import { ClawSandboxClient, type ClawSignerConfig } from "../sandbox.js";
 import { type ClawInvokeResult } from "../util/operation-utils.js";
 import {
@@ -23,7 +24,10 @@ export type {
 
 function toSerializedSuiSignature(rawSignatureHex: string, publicKeyHex?: string): string {
   if (!publicKeyHex) {
-    throw new Error("Claw Sandbox did not return the Sui public key needed to serialize the signature");
+    throw new ClawSDKError("Claw Sandbox did not return the Sui public key needed to serialize the signature", {
+      code: "CLAW_SIGNATURE_MISSING",
+      field: "from",
+    });
   }
 
   const signature = hexToBytes(rawSignatureHex);
@@ -64,7 +68,9 @@ export class ClawSuiSigner {
     });
 
     if (!res.signature_hex) {
-      throw new Error("Claw Sandbox did not return a signature");
+      throw new ClawSDKError("Claw Sandbox did not return a signature", {
+        code: "CLAW_SIGNATURE_MISSING",
+      });
     }
 
     return {
@@ -83,7 +89,9 @@ export class ClawSuiSigner {
     });
 
     if (!res.signature_hex) {
-      throw new Error("Claw Sandbox did not return a signature");
+      throw new ClawSDKError("Claw Sandbox did not return a signature", {
+        code: "CLAW_SIGNATURE_MISSING",
+      });
     }
 
     return {

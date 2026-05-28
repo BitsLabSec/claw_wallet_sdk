@@ -1,5 +1,6 @@
 import type { ClawOperationClient, Schema } from "../util/operation-utils.js";
-import { coalesce, errorText, withUid, type ClawInvokeResult } from "../util/operation-utils.js";
+import { coalesce, createSandboxError, withUid, type ClawInvokeResult } from "../util/operation-utils.js";
+import { requireNonEmpty } from "../util/validation.js";
 
 export type ClawEvmInvokeRequest = Omit<Schema<"ManagedEVMInvokeRequest">, "confirmed_by_user"> & {
   confirmed_by_user?: boolean;
@@ -39,14 +40,19 @@ export async function invokeEvm(
   request: ClawEvmInvokeRequest,
 ): Promise<ClawInvokeResult> {
   const { confirmedByUser: _confirmedByUser, ...rest } = request;
+  const to = requireNonEmpty(request.to, "to", "invokeEvm");
   const { data, error, response } = await client.client.POST("/api/v1/tx/evm/invoke", {
     body: {
       ...withUid(rest, client.config.uid),
+      to,
       confirmed_by_user: coalesce(request.confirmed_by_user, request.confirmedByUser),
     },
   });
   if (!response.ok || !data) {
-    throw new Error(`Failed to invoke EVM transaction (${response.status}): ${errorText(error, response)}`);
+    throw createSandboxError("Failed to invoke EVM transaction", response, error, {
+      method: "POST",
+      path: "/api/v1/tx/evm/invoke",
+    });
   }
   return data;
 }
@@ -65,12 +71,20 @@ export async function swapEvm(
     permitAmount: _permitAmount,
     ...rest
   } = request;
+  const chain = requireNonEmpty(request.chain, "chain", "swapEvm") as ClawEvmSwapRequest["chain"];
+  const tokenOut = requireNonEmpty(coalesce(request.token_out, request.tokenOut), "tokenOut", "swapEvm");
+  const amountInWei = requireNonEmpty(
+    coalesce(request.amount_in_wei, request.amountIn),
+    "amountIn",
+    "swapEvm",
+  );
   const { data, error, response } = await client.client.POST("/api/v1/tx/swap/evm", {
     body: {
       ...withUid(rest, client.config.uid),
+      chain,
       token_in: coalesce(request.token_in, request.tokenIn),
-      token_out: coalesce(request.token_out, request.tokenOut) ?? "",
-      amount_in_wei: coalesce(request.amount_in_wei, request.amountIn) ?? "",
+      token_out: tokenOut,
+      amount_in_wei: amountInWei,
       routing_preference: coalesce(request.routing_preference, request.routingPreference),
       auto_slippage: coalesce(request.auto_slippage, request.autoSlippage),
       slippage_tolerance: coalesce(request.slippage_tolerance, request.slippageTolerance),
@@ -78,7 +92,10 @@ export async function swapEvm(
     },
   });
   if (!response.ok || !data) {
-    throw new Error(`Failed to swap EVM assets (${response.status}): ${errorText(error, response)}`);
+    throw createSandboxError("Failed to swap EVM assets", response, error, {
+      method: "POST",
+      path: "/api/v1/tx/swap/evm",
+    });
   }
   return data;
 }

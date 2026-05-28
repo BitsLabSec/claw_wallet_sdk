@@ -15,10 +15,14 @@ export function bytesToHex(bytes: Uint8Array, prefix = true): string {
   return prefix ? `0x${hex}` : hex;
 }
 
+import { ClawValidationError } from "../errors.js";
+
 export function hexToBytes(hex: string): Uint8Array {
   const normalized = stripHexPrefix(hex);
   if (normalized.length % 2 !== 0) {
-    throw new Error("Hex payload must have an even number of characters");
+    throw new ClawValidationError("Hex payload must have an even number of characters", {
+      field: "hex",
+    });
   }
 
   const out = new Uint8Array(normalized.length / 2);

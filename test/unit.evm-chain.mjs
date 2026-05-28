@@ -4,7 +4,7 @@ import {
   chainIdToClawChain,
   clawChainToChainId,
   resolveClawEvmChain,
-} from "../dist/evm-chain.js";
+} from "../dist/evm/evm-chain.js";
 
 assert.equal(clawChainToChainId("kite"), 2366n);
 assert.equal(chainIdToClawChain(2366n), "kite");

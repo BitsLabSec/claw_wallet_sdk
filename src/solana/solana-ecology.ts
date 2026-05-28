@@ -1,5 +1,6 @@
 import type { ClawOperationClient, Schema } from "../util/operation-utils.js";
-import { coalesce, errorText, withUid, type ClawInvokeResult } from "../util/operation-utils.js";
+import { coalesce, createSandboxError, withUid, type ClawInvokeResult } from "../util/operation-utils.js";
+import { requireNonEmpty, requireOneOf } from "../util/validation.js";
 
 export type ClawSolanaInvokeRequest = Omit<
   Schema<"ManagedSolInvokeRequest">,
@@ -66,18 +67,34 @@ export async function invokeSolana(
     confirmedByUser: _confirmedByUser,
     ...rest
   } = request;
+  const unsignedTxBase64 = coalesce(request.unsigned_tx_base64, request.unsignedTxBase64);
+  const unsignedTxHex = coalesce(request.unsigned_tx_hex, request.unsignedTxHex);
+  const txPayloadBase64 = coalesce(request.tx_payload_base64, request.txPayloadBase64);
+  const txPayloadHex = coalesce(request.tx_payload_hex, request.txPayloadHex);
+  requireOneOf(
+    [
+      ["unsignedTxBase64", unsignedTxBase64],
+      ["unsignedTxHex", unsignedTxHex],
+      ["txPayloadBase64", txPayloadBase64],
+      ["txPayloadHex", txPayloadHex],
+    ],
+    "invokeSolana",
+  );
   const { data, error, response } = await client.client.POST("/api/v1/tx/sol/invoke", {
     body: {
       ...withUid(rest, client.config.uid),
-      unsigned_tx_base64: coalesce(request.unsigned_tx_base64, request.unsignedTxBase64),
-      unsigned_tx_hex: coalesce(request.unsigned_tx_hex, request.unsignedTxHex),
-      tx_payload_base64: coalesce(request.tx_payload_base64, request.txPayloadBase64),
-      tx_payload_hex: coalesce(request.tx_payload_hex, request.txPayloadHex),
+      unsigned_tx_base64: unsignedTxBase64,
+      unsigned_tx_hex: unsignedTxHex,
+      tx_payload_base64: txPayloadBase64,
+      tx_payload_hex: txPayloadHex,
       confirmed_by_user: coalesce(request.confirmed_by_user, request.confirmedByUser),
     },
   });
   if (!response.ok || !data) {
-    throw new Error(`Failed to invoke Solana transaction (${response.status}): ${errorText(error, response)}`);
+    throw createSandboxError("Failed to invoke Solana transaction", response, error, {
+      method: "POST",
+      path: "/api/v1/tx/sol/invoke",
+    });
   }
   return data;
 }
@@ -99,12 +116,18 @@ export async function swapSolana(
     dynamicComputeUnitLimit: _dynamicComputeUnitLimit,
     ...rest
   } = request;
+  const tokenOut = requireNonEmpty(coalesce(request.token_out, request.tokenOut), "tokenOut", "swapSolana");
+  const amountInWei = requireNonEmpty(
+    coalesce(request.amount_in_wei, request.amountIn),
+    "amountIn",
+    "swapSolana",
+  );
   const { data, error, response } = await client.client.POST("/api/v1/tx/swap/solana", {
     body: {
       ...withUid(rest, client.config.uid),
       token_in: coalesce(request.token_in, request.tokenIn),
-      token_out: coalesce(request.token_out, request.tokenOut) ?? "",
-      amount_in_wei: coalesce(request.amount_in_wei, request.amountIn) ?? "",
+      token_out: tokenOut,
+      amount_in_wei: amountInWei,
       slippage_bps: coalesce(request.slippage_bps, request.slippageBps),
       exclude_routers: coalesce(request.exclude_routers, request.excludeRouters),
       exclude_dexes: coalesce(request.exclude_dexes, request.excludeDexes),
@@ -118,7 +141,10 @@ export async function swapSolana(
     },
   });
   if (!response.ok || !data) {
-    throw new Error(`Failed to swap Solana assets (${response.status}): ${errorText(error, response)}`);
+    throw createSandboxError("Failed to swap Solana assets", response, error, {
+      method: "POST",
+      path: "/api/v1/tx/swap/solana",
+    });
   }
   return data;
 }

@@ -8,12 +8,12 @@ import {
 import {
   createClawSandboxPublicClient,
   recoverEvmPersonalSignAddress,
-} from "../dist/viem.js";
+} from "../dist/evm/viem.js";
 import {
   ClawEthersSigner,
   createClawSandboxJsonRpcProvider,
   recoverAddressFromPersonalSignEthers,
-} from "../dist/ethers.js";
+} from "../dist/evm/ethers.js";
 import { Signature, Transaction as EthersTransaction } from "ethers";
 import { loadIntegrationConfig } from "./load-integration-config.mjs";
 

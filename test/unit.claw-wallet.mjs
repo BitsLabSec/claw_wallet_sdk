@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import http from "node:http";
 
-import { ClawWallet } from "../dist/index.js";
+import { ClawSDKError, ClawValidationError, ClawWallet } from "../dist/index.js";
 
 const calls = [];
 
@@ -19,6 +19,11 @@ const server = http.createServer((req, res) => {
       body,
     });
 
+    if (req.url === "/fail/api/v1/wallet/status") {
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ message: "sandbox unavailable" }));
+      return;
+    }
     res.writeHead(200, { "Content-Type": "application/json" });
     if (req.url === "/api/v1/wallet/status") {
       res.end(JSON.stringify({ status: "ready", uid: "uid-1" }));
@@ -66,6 +71,20 @@ try {
 
   const status = await claw.wallet.status();
   assert.equal(status.status, "ready");
+
+  await assert.rejects(
+    () => claw.transfer({
+      chain: "solana",
+      to: "recipient",
+      amount: "",
+    }),
+    (error) => {
+      assert.ok(error instanceof ClawValidationError);
+      assert.equal(error.code, "CLAW_VALIDATION_ERROR");
+      assert.equal(error.field, "amount");
+      return true;
+    },
+  );
 
   await claw.transfer({
     chain: "solana",
@@ -130,6 +149,22 @@ try {
   const broadcastCall = calls.find((call) => call.url === "/api/v1/tx/broadcast");
   assert.equal(broadcastCall?.body.uid, "uid-1");
   assert.equal(broadcastCall?.body.raw_tx_hex, "0xabc");
+
+  const failingClaw = new ClawWallet({
+    uid: "uid-1",
+    sandboxUrl: `http://127.0.0.1:${address.port}/fail`,
+    token: "test-token",
+  });
+  await assert.rejects(
+    () => failingClaw.wallet.status(),
+    (error) => {
+      assert.ok(error instanceof ClawSDKError);
+      assert.equal(error.code, "CLAW_SANDBOX_ERROR");
+      assert.equal(error.status, 500);
+      assert.equal(error.path, "/api/v1/wallet/status");
+      return true;
+    },
+  );
 
   process.stdout.write("claw wallet facade unit passed\n");
 } finally {

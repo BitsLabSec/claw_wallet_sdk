@@ -4,6 +4,7 @@ import http from "node:http";
 import { ClawEthersSigner } from "../dist/evm/ethers.js";
 import { ClawSolanaSigner } from "../dist/solana/solana.js";
 import { ClawSuiSigner } from "../dist/sui/sui.js";
+import { ClawValidationError } from "../dist/index.js";
 
 const calls = [];
 
@@ -77,6 +78,41 @@ try {
   const evmSigner = new ClawEthersSigner(config);
   const solanaSigner = new ClawSolanaSigner(config, "11111111111111111111111111111111");
   const suiSigner = new ClawSuiSigner(config, "0x1");
+
+  await assert.rejects(
+    () => evmSigner.swap({
+      chain: "base",
+      tokenOut: "0x0000000000000000000000000000000000000001",
+      amountIn: "",
+    }),
+    (error) => {
+      assert.ok(error instanceof ClawValidationError);
+      assert.equal(error.field, "amountIn");
+      return true;
+    },
+  );
+
+  await assert.rejects(
+    () => solanaSigner.invoke({}),
+    (error) => {
+      assert.ok(error instanceof ClawValidationError);
+      assert.equal(error.field, "unsignedTxBase64");
+      return true;
+    },
+  );
+
+  await assert.rejects(
+    () => suiSigner.swap({
+      tokenIn: "SUI",
+      tokenOut: "",
+      amount: "789",
+    }),
+    (error) => {
+      assert.ok(error instanceof ClawValidationError);
+      assert.equal(error.field, "tokenOut");
+      return true;
+    },
+  );
 
   await evmSigner.swap({
     chain: "base",

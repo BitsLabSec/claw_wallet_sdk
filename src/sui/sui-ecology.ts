@@ -1,5 +1,6 @@
 import type { ClawOperationClient, Schema } from "../util/operation-utils.js";
-import { coalesce, errorText, withUid, type ClawInvokeResult } from "../util/operation-utils.js";
+import { coalesce, createSandboxError, withUid, type ClawInvokeResult } from "../util/operation-utils.js";
+import { requireNonEmpty, requireOneOf } from "../util/validation.js";
 
 export type ClawSuiInvokeRequest = Omit<Schema<"SuiTxBytesExecuteRequest">, "tx_bytes_base64" | "tx_bytes_hex"> & {
   tx_bytes_base64?: string;
@@ -31,15 +32,30 @@ export async function invokeSui(
     txBytesHex: _txBytesHex,
     ...rest
   } = request;
+  const txBytes = request.txBytes;
+  const txBytesBase64 = coalesce(request.tx_bytes_base64, request.txBytesBase64);
+  const txBytesHex = coalesce(request.tx_bytes_hex, request.txBytesHex);
+  requireOneOf(
+    [
+      ["txBytes", txBytes],
+      ["txBytesBase64", txBytesBase64],
+      ["txBytesHex", txBytesHex],
+    ],
+    "invokeSui",
+  );
   const { data, error, response } = await client.client.POST("/api/v1/tx/sui/invoke", {
     body: {
       ...withUid(rest, client.config.uid),
-      tx_bytes_base64: coalesce(request.tx_bytes_base64, request.txBytesBase64),
-      tx_bytes_hex: coalesce(request.tx_bytes_hex, request.txBytesHex),
+      txBytes,
+      tx_bytes_base64: txBytesBase64,
+      tx_bytes_hex: txBytesHex,
     },
   });
   if (!response.ok || !data) {
-    throw new Error(`Failed to invoke Sui transaction (${response.status}): ${errorText(error, response)}`);
+    throw createSandboxError("Failed to invoke Sui transaction", response, error, {
+      method: "POST",
+      path: "/api/v1/tx/sui/invoke",
+    });
   }
   return data;
 }
@@ -52,7 +68,10 @@ export async function invokeSuiHaedal(
     body: withUid(request, client.config.uid),
   });
   if (!response.ok || !data) {
-    throw new Error(`Failed to invoke Sui Haedal action (${response.status}): ${errorText(error, response)}`);
+    throw createSandboxError("Failed to invoke Sui Haedal action", response, error, {
+      method: "POST",
+      path: "/api/v1/tx/sui/haedal",
+    });
   }
   return data;
 }
@@ -67,16 +86,22 @@ export async function swapSui(
     amount: _amount,
     ...rest
   } = request;
+  const tokenIn = requireNonEmpty(coalesce(request.token_in, request.tokenIn), "tokenIn", "swapSui");
+  const tokenOut = requireNonEmpty(coalesce(request.token_out, request.tokenOut), "tokenOut", "swapSui");
+  const amountWei = requireNonEmpty(coalesce(request.amount_wei, request.amount), "amount", "swapSui");
   const { data, error, response } = await client.client.POST("/api/v1/tx/swap/sui", {
     body: {
       ...withUid(rest, client.config.uid),
-      token_in: coalesce(request.token_in, request.tokenIn) ?? "",
-      token_out: coalesce(request.token_out, request.tokenOut) ?? "",
-      amount_wei: coalesce(request.amount_wei, request.amount) ?? "",
+      token_in: tokenIn,
+      token_out: tokenOut,
+      amount_wei: amountWei,
     },
   });
   if (!response.ok || !data) {
-    throw new Error(`Failed to swap Sui assets (${response.status}): ${errorText(error, response)}`);
+    throw createSandboxError("Failed to swap Sui assets", response, error, {
+      method: "POST",
+      path: "/api/v1/tx/swap/sui",
+    });
   }
   return data;
 }

@@ -1,10 +1,12 @@
 import type { components } from "./generated/paths.js";
 import type * as Client from "./client.js";
 import * as EvmOps from "./evm/evm-ecology.js";
+import { createSandboxError } from "./errors.js";
 import * as Sandbox from "./sandbox.js";
 import * as SolanaOps from "./solana/solana-ecology.js";
 import * as SuiOps from "./sui/sui-ecology.js";
 import * as OperationUtils from "./util/operation-utils.js";
+import { requireNonEmpty, requireUrl } from "./util/validation.js";
 
 type Schema<Name extends keyof components["schemas"]> = components["schemas"][Name];
 
@@ -77,6 +79,7 @@ function withUid<T extends { uid?: string }>(request: T | undefined, uid: string
 }
 
 export class ClawWallet extends Sandbox.ClawSandboxClient {
+  /** Wallet lifecycle and read APIs grouped for the common integration path. */
   readonly wallet = {
     status: () => this.getStatus(),
     init: (request?: Sandbox.ClawWalletInitRequest) => this.initWallet(request),
@@ -96,6 +99,7 @@ export class ClawWallet extends Sandbox.ClawSandboxClient {
     updatePolicy: (patch: Sandbox.ClawPolicyUpdatePatch) => this.updateLocalPolicy(patch),
   };
 
+  /** Signing, broadcast, transfer, and managed chain invoke helpers. */
   readonly tx = {
     sign: (request: Omit<Sandbox.ClawSignRequest, "uid">) => this.sign(request),
     broadcast: (request: Sandbox.ClawBroadcastRequest) => this.broadcast(request),
@@ -112,12 +116,14 @@ export class ClawWallet extends Sandbox.ClawSandboxClient {
     },
   };
 
+  /** Same-chain swaps across EVM, Solana, and Sui. */
   readonly swap = {
     evm: (request: EvmOps.ClawEvmSwapRequest) => this.swapEvm(request),
     solana: (request: SolanaOps.ClawSolanaSwapRequest) => this.swapSolana(request),
     sui: (request: SuiOps.ClawSuiSwapRequest) => this.swapSui(request),
   };
 
+  /** Cross-chain bridge helpers currently backed by LI.FI routes. */
   readonly bridge = {
     lifi: {
       tokens: (chains: string | readonly string[]) => this.getLifiTokens(chains),
@@ -142,8 +148,8 @@ export class ClawWallet extends Sandbox.ClawSandboxClient {
 
   constructor(options: ClawWalletOptions) {
     super({
-      uid: options.uid,
-      sandboxUrl: options.sandboxUrl,
+      uid: requireNonEmpty(options.uid, "uid", "ClawWallet"),
+      sandboxUrl: requireUrl(options.sandboxUrl, "sandboxUrl", "ClawWallet"),
       sandboxToken: options.token ?? options.sandboxToken ?? "",
       chain: options.chain,
       fetch: options.fetch,
@@ -180,9 +186,10 @@ export class ClawWallet extends Sandbox.ClawSandboxClient {
       executionToken: _executionToken,
       ...rest
     } = request;
+    const amountWei = requireNonEmpty(coalesce(request.amount_wei, request.amount), "amount", "transfer");
     return super.transfer({
       ...withUid(rest, this.config.uid),
-      amount_wei: coalesce(request.amount_wei, request.amount) ?? "",
+      amount_wei: amountWei,
       token_contract: coalesce(request.token_contract, request.tokenContract),
       sui_gas_budget: coalesce(request.sui_gas_budget, request.suiGasBudget),
       confirmed_by_user: coalesce(request.confirmed_by_user, request.confirmedByUser),
@@ -194,7 +201,10 @@ export class ClawWallet extends Sandbox.ClawSandboxClient {
   async backupWallet(): Promise<ClawWalletBackup> {
     const { data, error, response } = await this.client.GET("/api/v1/wallet/backup", {});
     if (!response.ok || !data) {
-      throw new Error(`Failed to backup wallet (${response.status}): ${OperationUtils.errorText(error, response)}`);
+      throw createSandboxError("Failed to backup wallet", response, error, {
+        method: "GET",
+        path: "/api/v1/wallet/backup",
+      });
     }
     return data;
   }
@@ -204,7 +214,10 @@ export class ClawWallet extends Sandbox.ClawSandboxClient {
       body: request,
     });
     if (!response.ok || !data) {
-      throw new Error(`Failed to import wallet (${response.status}): ${OperationUtils.errorText(error, response)}`);
+      throw createSandboxError("Failed to import wallet", response, error, {
+        method: "POST",
+        path: "/api/v1/wallet/import",
+      });
     }
     return data;
   }
@@ -214,7 +227,10 @@ export class ClawWallet extends Sandbox.ClawSandboxClient {
       body: request,
     });
     if (!response.ok || !data) {
-      throw new Error(`Failed to provision wallet (${response.status}): ${OperationUtils.errorText(error, response)}`);
+      throw createSandboxError("Failed to provision wallet", response, error, {
+        method: "POST",
+        path: "/api/v1/wallet/provision",
+      });
     }
     return data;
   }
@@ -224,7 +240,10 @@ export class ClawWallet extends Sandbox.ClawSandboxClient {
       body: withUid(request, this.config.uid),
     });
     if (!response.ok || !data) {
-      throw new Error(`Failed to bind uid (${response.status}): ${OperationUtils.errorText(error, response)}`);
+      throw createSandboxError("Failed to bind uid", response, error, {
+        method: "POST",
+        path: "/api/v1/wallet/bind_uid",
+      });
     }
     return data;
   }
@@ -259,11 +278,15 @@ export class ClawWallet extends Sandbox.ClawSandboxClient {
 
   async getLifiTokens(chains: string | readonly string[]): Promise<ClawLifiTokensResponse> {
     const chainParam = typeof chains === "string" ? chains : chains.join(",");
+    requireNonEmpty(chainParam, "chains", "getLifiTokens");
     const { data, error, response } = await this.client.GET("/api/v1/tx/bridge/lifi/tokens", {
       params: { query: { chains: chainParam } },
     });
     if (!response.ok || !data) {
-      throw new Error(`Failed to get LI.FI tokens (${response.status}): ${OperationUtils.errorText(error, response)}`);
+      throw createSandboxError("Failed to get LI.FI tokens", response, error, {
+        method: "GET",
+        path: "/api/v1/tx/bridge/lifi/tokens",
+      });
     }
     return data;
   }
@@ -273,7 +296,10 @@ export class ClawWallet extends Sandbox.ClawSandboxClient {
       body: this.toLifiBridgeBody(request),
     });
     if (!response.ok || !data) {
-      throw new Error(`Failed to quote LI.FI bridge (${response.status}): ${OperationUtils.errorText(error, response)}`);
+      throw createSandboxError("Failed to quote LI.FI bridge", response, error, {
+        method: "POST",
+        path: "/api/v1/tx/bridge/lifi/quote",
+      });
     }
     return data;
   }
@@ -283,13 +309,16 @@ export class ClawWallet extends Sandbox.ClawSandboxClient {
       body: this.toLifiBridgeBody(request),
     });
     if (!response.ok || !data) {
-      throw new Error(`Failed to execute LI.FI bridge (${response.status}): ${OperationUtils.errorText(error, response)}`);
+      throw createSandboxError("Failed to execute LI.FI bridge", response, error, {
+        method: "POST",
+        path: "/api/v1/tx/bridge/lifi/execute",
+      });
     }
     return data;
   }
 
   async getLifiBridgeStatus(finalStatusUrl: string): Promise<unknown> {
-    return this.requestExternalJson<unknown>(finalStatusUrl);
+    return this.requestExternalJson<unknown>(requireUrl(finalStatusUrl, "finalStatusUrl", "getLifiBridgeStatus"));
   }
 
   async getPolicy(): Promise<Sandbox.ClawPolicy> {
@@ -307,15 +336,17 @@ export class ClawWallet extends Sandbox.ClawSandboxClient {
       toToken: _toToken,
       ...rest
     } = request;
-    return {
+    const body = {
       ...rest,
       via_solana: coalesce(request.via_solana, request.viaSolana),
-      from_chain_id: coalesce(request.from_chain_id, request.fromChainId) ?? "",
-      from_address: coalesce(request.from_address, request.fromAddress) ?? "",
-      from_token: coalesce(request.from_token, request.fromToken) ?? "",
-      to_chain_id: coalesce(request.to_chain_id, request.toChainId) ?? "",
-      to_address: coalesce(request.to_address, request.toAddress) ?? "",
-      to_token: coalesce(request.to_token, request.toToken) ?? "",
+      from_chain_id: requireNonEmpty(coalesce(request.from_chain_id, request.fromChainId), "fromChainId", "bridge.lifi"),
+      from_address: requireNonEmpty(coalesce(request.from_address, request.fromAddress), "fromAddress", "bridge.lifi"),
+      from_token: requireNonEmpty(coalesce(request.from_token, request.fromToken), "fromToken", "bridge.lifi"),
+      amount: requireNonEmpty(request.amount, "amount", "bridge.lifi"),
+      to_chain_id: requireNonEmpty(coalesce(request.to_chain_id, request.toChainId), "toChainId", "bridge.lifi"),
+      to_address: requireNonEmpty(coalesce(request.to_address, request.toAddress), "toAddress", "bridge.lifi"),
+      to_token: requireNonEmpty(coalesce(request.to_token, request.toToken), "toToken", "bridge.lifi"),
     };
+    return body;
   }
 }
