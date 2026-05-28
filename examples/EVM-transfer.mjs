@@ -3,12 +3,10 @@ import { ClawEthersSigner, createClawSandboxJsonRpcProvider } from "../dist/evm/
 
 const sandboxUrl = process.env.CLAY_SANDBOX_URL ?? "http://127.0.0.1:9000";
 const sandboxToken = process.env.CLAY_AGENT_TOKEN?.trim() ?? "";
-const uid = process.env.CLAY_UID?.trim() ?? "";
 const to = process.env.BSC_TO?.trim() ?? "";
 const amount = process.env.BSC_AMOUNT ?? "0.0001";
 const chainKey = process.env.BSC_CHAIN_KEY ?? "bsc";
 
-if (!uid) throw new Error("missing CLAY_UID");
 if (!to) throw new Error("missing BSC_TO");
 
 console.log("to", to);
@@ -16,7 +14,7 @@ console.log("amount", amount);
 console.log("chainKey", chainKey);
 
 const provider = createClawSandboxJsonRpcProvider({baseUrl: sandboxUrl,agentToken: sandboxToken,chainKey});
-const signer = new ClawEthersSigner({uid,sandboxUrl,sandboxToken,},provider);
+const signer = new ClawEthersSigner({ sandboxUrl, sandboxToken }, provider);
 // Test data
 const from = await signer.getAddress();
 const network = await provider.getNetwork();

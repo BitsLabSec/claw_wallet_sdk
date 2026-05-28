@@ -1,6 +1,5 @@
 /**
  * Run after `npm run build` from package root:
- *   CLAY_UID="your_uid" \
  *   CLAY_SANDBOX_URL="http://127.0.0.1:9000" \
  *   CLAY_AGENT_TOKEN="your_token" \
  *   CLAY_SWAP_KIND="evm" \
@@ -12,7 +11,6 @@
  */
 import { ClawWallet } from "../dist/index.js";
 
-const uid = process.env.CLAY_UID?.trim() ?? "";
 const sandboxUrl = process.env.CLAY_SANDBOX_URL ?? "http://127.0.0.1:9000";
 const token = process.env.CLAY_AGENT_TOKEN?.trim() ?? "";
 const kind = (process.env.CLAY_SWAP_KIND ?? "evm").trim().toLowerCase();
@@ -20,11 +18,10 @@ const tokenIn = process.env.CLAY_SWAP_TOKEN_IN?.trim() || "native";
 const tokenOut = process.env.CLAY_SWAP_TOKEN_OUT?.trim() || "";
 const amount = process.env.CLAY_SWAP_AMOUNT?.trim() || "";
 
-if (!uid) throw new Error("missing CLAY_UID");
 if (!tokenOut) throw new Error("missing CLAY_SWAP_TOKEN_OUT");
 if (!amount) throw new Error("missing CLAY_SWAP_AMOUNT");
 
-const claw = new ClawWallet({ uid, sandboxUrl, token });
+const claw = new ClawWallet({ sandboxUrl, token });
 
 let result;
 if (kind === "evm") {

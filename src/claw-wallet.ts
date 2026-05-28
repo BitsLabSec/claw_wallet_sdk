@@ -11,7 +11,7 @@ import { requireNonEmpty, requireUrl } from "./util/validation.js";
 type Schema<Name extends keyof components["schemas"]> = components["schemas"][Name];
 
 export type ClawWalletOptions = {
-  uid: string;
+  uid?: string;
   sandboxUrl: string;
   token?: string;
   sandboxToken?: string;
@@ -71,11 +71,12 @@ function coalesce<T>(first: T | undefined, second: T | undefined): T | undefined
   return first !== undefined ? first : second;
 }
 
-function withUid<T extends { uid?: string }>(request: T | undefined, uid: string): T & { uid: string } {
-  return {
-    ...(request ?? {} as T),
-    uid: request?.uid ?? uid,
-  };
+function withUid<T extends { uid?: string }>(request: T | undefined, uid?: string): T {
+  const next = { ...(request ?? {} as T) };
+  if (next.uid === undefined && uid) {
+    next.uid = uid;
+  }
+  return next;
 }
 
 export class ClawWallet extends Sandbox.ClawSandboxClient {
@@ -101,7 +102,7 @@ export class ClawWallet extends Sandbox.ClawSandboxClient {
 
   /** Signing, broadcast, transfer, and managed chain invoke helpers. */
   readonly tx = {
-    sign: (request: Omit<Sandbox.ClawSignRequest, "uid">) => this.sign(request),
+    sign: (request: Sandbox.ClawSignRequestInput) => this.sign(request),
     broadcast: (request: Sandbox.ClawBroadcastRequest) => this.broadcast(request),
     transfer: (request: ClawTransferRequestInput) => this.transfer(request),
     evm: {
@@ -148,7 +149,7 @@ export class ClawWallet extends Sandbox.ClawSandboxClient {
 
   constructor(options: ClawWalletOptions) {
     super({
-      uid: requireNonEmpty(options.uid, "uid", "ClawWallet"),
+      uid: options.uid,
       sandboxUrl: requireUrl(options.sandboxUrl, "sandboxUrl", "ClawWallet"),
       sandboxToken: options.token ?? options.sandboxToken ?? "",
       chain: options.chain,
@@ -168,7 +169,7 @@ export class ClawWallet extends Sandbox.ClawSandboxClient {
     return this.wallet.history(query);
   }
 
-  async sign(request: Omit<Sandbox.ClawSignRequest, "uid">): Promise<Sandbox.ClawSignResult> {
+  async sign(request: Sandbox.ClawSignRequestInput): Promise<Sandbox.ClawSignResult> {
     return this.tx.sign(request);
   }
 
@@ -236,8 +237,10 @@ export class ClawWallet extends Sandbox.ClawSandboxClient {
   }
 
   async bindUid(request?: Partial<ClawWalletBindUIDRequest>): Promise<{ status?: string; uid?: string }> {
+    const body = withUid(request, this.config.uid);
+    requireNonEmpty(body.uid, "uid", "bindUid");
     const { data, error, response } = await this.client.POST("/api/v1/wallet/bind_uid", {
-      body: withUid(request, this.config.uid),
+      body: body as ClawWalletBindUIDRequest,
     });
     if (!response.ok || !data) {
       throw createSandboxError("Failed to bind uid", response, error, {

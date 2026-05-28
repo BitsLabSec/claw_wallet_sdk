@@ -64,7 +64,6 @@ try {
   const address = server.address();
   assert.ok(address && typeof address === "object", "test server did not expose a socket address");
   const claw = new ClawWallet({
-    uid: "uid-1",
     sandboxUrl: `http://127.0.0.1:${address.port}/`,
     token: "test-token",
   });
@@ -121,16 +120,28 @@ try {
   });
   assert.equal(broadcast.tx_hash, "0xsent");
 
+  await claw.transfer({
+    uid: "explicit-uid",
+    chain: "solana",
+    to: "recipient",
+    amount: "2000",
+  });
+
   const transferCall = calls.find((call) => call.url === "/api/v1/tx/transfer");
-  assert.equal(transferCall?.body.uid, "uid-1");
+  assert.equal("uid" in transferCall.body, false);
   assert.equal(transferCall?.body.amount_wei, "1000");
   assert.equal(transferCall?.body.token_contract, "native");
   assert.equal(transferCall?.body.confirmed_by_user, true);
   assert.equal("confirmedByUser" in transferCall.body, false);
 
+  const explicitUidTransfer = calls.find(
+    (call) => call.url === "/api/v1/tx/transfer" && call.body?.amount_wei === "2000",
+  );
+  assert.equal(explicitUidTransfer?.body.uid, "explicit-uid");
+
   const swapCall = calls.find((call) => call.url === "/api/v1/tx/swap/evm");
   assert.equal(swapCall?.authorization, "Bearer test-token");
-  assert.equal(swapCall?.body.uid, "uid-1");
+  assert.equal("uid" in swapCall.body, false);
   assert.equal(swapCall?.body.token_in, "native");
   assert.equal(swapCall?.body.token_out, "0x0000000000000000000000000000000000000001");
   assert.equal(swapCall?.body.amount_in_wei, "123");
@@ -147,11 +158,10 @@ try {
   assert.ok(tokenCall, "expected encoded LI.FI token query");
 
   const broadcastCall = calls.find((call) => call.url === "/api/v1/tx/broadcast");
-  assert.equal(broadcastCall?.body.uid, "uid-1");
+  assert.equal("uid" in broadcastCall.body, false);
   assert.equal(broadcastCall?.body.raw_tx_hex, "0xabc");
 
   const failingClaw = new ClawWallet({
-    uid: "uid-1",
     sandboxUrl: `http://127.0.0.1:${address.port}/fail`,
     token: "test-token",
   });

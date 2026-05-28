@@ -1,6 +1,5 @@
 /**
  * Run after `npm run build` from package root:
- *   CLAY_UID="your_uid" \
  *   CLAY_SANDBOX_URL="http://127.0.0.1:9000" \
  *   CLAY_AGENT_TOKEN="your_token" \
  *   CLAY_BRIDGE_FROM_CHAIN_ID="1" \
@@ -17,7 +16,6 @@
  */
 import { ClawWallet } from "../dist/index.js";
 
-const uid = process.env.CLAY_UID?.trim() ?? "";
 const sandboxUrl = process.env.CLAY_SANDBOX_URL ?? "http://127.0.0.1:9000";
 const token = process.env.CLAY_AGENT_TOKEN?.trim() ?? "";
 
@@ -31,12 +29,11 @@ const request = {
   toToken: process.env.CLAY_BRIDGE_TO_TOKEN?.trim() ?? "",
 };
 
-if (!uid) throw new Error("missing CLAY_UID");
 for (const [key, value] of Object.entries(request)) {
   if (!value) throw new Error(`missing CLAY_BRIDGE_${key.replace(/[A-Z]/g, "_$&").toUpperCase()}`);
 }
 
-const claw = new ClawWallet({ uid, sandboxUrl, token });
+const claw = new ClawWallet({ sandboxUrl, token });
 
 const tokens = await claw.bridge.lifi.tokens([request.fromChainId, request.toChainId]);
 console.log("supported tokens", JSON.stringify(tokens, null, 2));

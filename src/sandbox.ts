@@ -4,6 +4,7 @@ import { ClawSDKError, createHttpError, createSandboxError } from "./errors.js";
 import { requireNonEmpty, requireUrl } from "./util/validation.js";
 
 export type ClawSignRequest = components["schemas"]["SignRequest"];
+export type ClawSignRequestInput = Omit<ClawSignRequest, "uid"> & { uid?: string };
 export type ClawSignResult = components["schemas"]["SignResult"];
 export type ClawWalletStatus = components["schemas"]["WalletStatusResponse"];
 export type ClawWalletInitRequest = components["schemas"]["WalletInitRequest"];
@@ -44,7 +45,7 @@ const EVM_ADDRESS_FALLBACK_CHAINS = new Set([
 ]);
 
 export type ClawSignerConfig = {
-  uid: string;
+  uid?: string;
   sandboxUrl: string;
   sandboxToken: string;
   chain?: string;
@@ -61,7 +62,6 @@ export class ClawSandboxClient {
   constructor(config: ClawSignerConfig) {
     this.config = {
       ...config,
-      uid: requireNonEmpty(config.uid, "uid", "ClawSandboxClient"),
       sandboxUrl: normalizeSandboxUrl(config.sandboxUrl),
       sandboxToken: config.sandboxToken ?? "",
     };
@@ -86,12 +86,13 @@ export class ClawSandboxClient {
     return await response.json() as T;
   }
 
-  async sign(request: Omit<ClawSignRequest, "uid">): Promise<ClawSignResult> {
+  async sign(request: ClawSignRequestInput): Promise<ClawSignResult> {
+    const body = {
+      ...request,
+      ...(request.uid === undefined && this.config.uid ? { uid: this.config.uid } : {}),
+    };
     const { data, error, response } = await this.client.POST("/api/v1/tx/sign", {
-      body: {
-        ...request,
-        uid: this.config.uid,
-      },
+      body: body as ClawSignRequest,
     });
 
     if (!response.ok || !data) {

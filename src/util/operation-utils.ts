@@ -12,9 +12,17 @@ export function coalesce<T>(first: T | undefined, second: T | undefined): T | un
   return first !== undefined ? first : second;
 }
 
-export function withUid<T extends { uid?: string }>(request: T | undefined, uid: string): T & { uid: string } {
+export function withUid<T extends { uid?: string }>(request: T | undefined, uid?: string): T {
+  const next = { ...(request ?? {} as T) };
+  if (next.uid === undefined && uid) {
+    next.uid = uid;
+  }
+  return next;
+}
+
+export function withOptionalUid<T extends { uid?: string }>(request: T, uid?: string): T {
   return {
-    ...(request ?? {} as T),
-    uid: request?.uid ?? uid,
+    ...request,
+    ...(request.uid === undefined && uid ? { uid } : {}),
   };
 }

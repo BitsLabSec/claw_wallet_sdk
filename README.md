@@ -14,7 +14,6 @@ Use `ClawWallet` for new integrations. It keeps wallet, transfer, swap, bridge, 
 import { ClawWallet } from "@claw_wallet_sdk/claw_wallet";
 
 const claw = new ClawWallet({
-  uid: process.env.CLAY_UID!,
   sandboxUrl: process.env.CLAY_SANDBOX_URL!,
   token: process.env.CLAY_AGENT_TOKEN,
 });
@@ -81,8 +80,8 @@ Call `await claw.bridge.lifi.tokens(["1", "1151111081099710"])` before quoting w
 ## Wallet And Transactions
 
 ```ts
-await claw.wallet.init({ master_pin: "123456" });
-await claw.wallet.unlock({ pin: "123456" });
+await claw.wallet.init();
+await claw.wallet.status();
 await claw.wallet.updatePolicy({ daily_limit_usd: 1000 });
 
 await claw.tx.evm.invoke({
@@ -135,7 +134,6 @@ import { ClawSolanaSigner } from "@claw_wallet_sdk/claw_wallet/solana";
 import { ClawSuiSigner } from "@claw_wallet_sdk/claw_wallet/sui";
 
 const config = {
-  uid: process.env.CLAY_UID!,
   sandboxUrl: process.env.CLAY_SANDBOX_URL!,
   sandboxToken: process.env.CLAY_AGENT_TOKEN!,
 };
@@ -158,7 +156,6 @@ await sui.swap({ tokenIn: "SUI", tokenOut: "USDC", amount: "1000000000" });
 import { ClawSandboxClient, createClawWalletClient } from "@claw_wallet_sdk/claw_wallet";
 
 const sandbox = new ClawSandboxClient({
-  uid: process.env.CLAY_UID!,
   sandboxUrl: process.env.CLAY_SANDBOX_URL!,
   sandboxToken: process.env.CLAY_AGENT_TOKEN!,
 });

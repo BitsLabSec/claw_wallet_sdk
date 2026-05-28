@@ -71,7 +71,6 @@ try {
   const address = server.address();
   assert.ok(address && typeof address === "object", "test server did not expose a socket address");
   const config = {
-    uid: "uid-ops",
     sandboxUrl: `http://127.0.0.1:${address.port}`,
     sandboxToken: "",
   };
@@ -139,26 +138,26 @@ try {
   });
 
   const evmSwap = calls.find((call) => call.url === "/api/v1/tx/swap/evm");
-  assert.equal(evmSwap?.body.uid, "uid-ops");
+  assert.equal("uid" in evmSwap.body, false);
   assert.equal(evmSwap?.body.amount_in_wei, "123");
   assert.equal("amountIn" in evmSwap.body, false);
 
   const solInvoke = calls.find((call) => call.url === "/api/v1/tx/sol/invoke");
-  assert.equal(solInvoke?.body.uid, "uid-ops");
+  assert.equal("uid" in solInvoke.body, false);
   assert.equal(solInvoke?.body.tx_payload_base64, "AQ==");
   assert.equal(solInvoke?.body.confirmed_by_user, true);
 
   const solSwap = calls.find((call) => call.url === "/api/v1/tx/swap/solana");
-  assert.equal(solSwap?.body.uid, "uid-ops");
+  assert.equal("uid" in solSwap.body, false);
   assert.equal(solSwap?.body.amount_in_wei, "456");
   assert.equal(solSwap?.body.slippage_bps, 75);
 
   const suiInvoke = calls.find((call) => call.url === "/api/v1/tx/sui/invoke");
-  assert.equal(suiInvoke?.body.uid, "uid-ops");
+  assert.equal("uid" in suiInvoke.body, false);
   assert.equal(suiInvoke?.body.tx_bytes_base64, "AQ==");
 
   const suiSwap = calls.find((call) => call.url === "/api/v1/tx/swap/sui");
-  assert.equal(suiSwap?.body.uid, "uid-ops");
+  assert.equal("uid" in suiSwap.body, false);
   assert.equal(suiSwap?.body.amount_wei, "789");
 
   process.stdout.write("chain operations unit passed\n");
