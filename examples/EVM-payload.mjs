@@ -1,9 +1,8 @@
 import { parseEther, parseUnits, Transaction, formatEther } from "ethers";
-import { ClawEthersSigner, createClawSandboxJsonRpcProvider } from "../dist/ethers.js";
+import { ClawEthersSigner, createClawSandboxJsonRpcProvider } from "../dist/evm/ethers.js";
 
 const sandboxUrl = process.env.CLAY_SANDBOX_URL ?? "http://127.0.0.1:9000";
 const sandboxToken = process.env.CLAY_AGENT_TOKEN?.trim() ?? "";
-const uid = process.env.CLAY_UID?.trim() ?? "";
 const payloadTo = "0xaddress";
 const payloadValue = 10000000000n; // 10 Gwei in wei
 const payloadData = "0x000aaa";
@@ -22,7 +21,6 @@ const provider = createClawSandboxJsonRpcProvider({
 
 const signer = new ClawEthersSigner(
   {
-    uid,
     sandboxUrl,
     sandboxToken,
   },

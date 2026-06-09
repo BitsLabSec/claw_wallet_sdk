@@ -13,14 +13,14 @@ import {
   createClawSandboxPublicClient,
   createClawAccountFromSandbox,
   recoverEvmPersonalSignAddress,
-} from "../dist/viem.js";
+} from "../dist/evm/viem.js";
 import {
   ClawEthersSigner,
   createClawSandboxJsonRpcProvider,
   recoverAddressFromPersonalSignEthers,
-} from "../dist/ethers.js";
-import { ClawSolanaSigner } from "../dist/solana.js";
-import { ClawSuiSigner } from "../dist/sui.js";
+} from "../dist/evm/ethers.js";
+import { ClawSolanaSigner } from "../dist/solana/solana.js";
+import { ClawSuiSigner } from "../dist/sui/sui.js";
 import {
   Signature,
   Transaction as EthersTransaction,
@@ -242,6 +242,13 @@ function assertMonadAddressPresent(status) {
   const monad = String(status?.addresses?.monad ?? "").trim().toLowerCase();
   assert.ok(ethereum.startsWith("0x"), "wallet/status missing ethereum address");
   assert.equal(monad, ethereum, "wallet/status should expose monad address matching ethereum");
+}
+
+function assertKiteAddressPresent(status) {
+  const ethereum = String(status?.addresses?.ethereum ?? status?.address ?? "").trim().toLowerCase();
+  const kite = evmExpectedAddressForChain(status, "kite").toLowerCase();
+  assert.ok(ethereum.startsWith("0x"), "wallet/status missing ethereum address");
+  assert.equal(kite, ethereum, "wallet/status should resolve kite address matching ethereum fallback");
 }
 
 async function assertEvmTransactionSignForChain(client, sandbox, status, uid, chainKey) {
@@ -552,6 +559,8 @@ async function refreshWalletStatus(client) {
   const { data, error, response } = await client.GET("/api/v1/wallet/status", {});
   assert.equal(response.status, 200, `wallet/status failed: ${error ?? response.statusText}`);
   assert.ok(data, "expected wallet/status response body");
+  assertMonadAddressPresent(data);
+  assertKiteAddressPresent(data);
   return data;
 }
 
@@ -867,6 +876,7 @@ async function main() {
   const statusUid = String(initialStatus?.uid ?? "").trim();
   assert.ok(statusUid, "wallet/status did not include uid");
   assertMonadAddressPresent(initialStatus);
+  assertKiteAddressPresent(initialStatus);
   const envUid = String(process.env.CLAY_UID?.trim() || "").trim();
   if (envUid && envUid !== statusUid) {
     throw new Error(`CLAY_UID mismatch: env=${envUid} status=${statusUid}`);
@@ -893,6 +903,7 @@ async function main() {
     assert.ok(data, "expected JSON body");
     assert.ok("status" in data || "gateway_status" in data);
     assertMonadAddressPresent(data);
+    assertKiteAddressPresent(data);
   });
 
   await runStep("reject wrong bearer", async () => {
@@ -989,7 +1000,7 @@ async function main() {
     assert.ok(priceProbe.data && typeof priceProbe.data === "object", "price cache should return JSON");
 
     if (currentStatus?.oracle_healthy) {
-      assertRequiredNativePrices(priceProbe.data, ["ethereum", "solana", "sui", "bitcoin", "monad"]);
+      assertRequiredNativePrices(priceProbe.data, ["ethereum", "solana", "sui", "bitcoin", "monad", "kite"]);
       const nativeEthereumPrice = getNativeEthereumPrice(priceProbe.data);
       assert.ok(nativeEthereumPrice > 0, "oracle healthy should expose native:ethereum price");
     }
@@ -1708,7 +1719,7 @@ async function main() {
     }
   });
 
-  await runStep("uniswap v3 swap smoke", async () => {
+  await runStep("evm swap smoke", async () => {
     const { data: st, response: rs } = await client.GET("/api/v1/wallet/status", {});
     assert.equal(rs.status, 200);
     const uid = String(st?.uid ?? "").trim();
@@ -1716,41 +1727,13 @@ async function main() {
 
     await assertSwapSmoke(
       client,
-      "/api/v1/tx/swap/uniswap_v3",
+      "/api/v1/tx/swap/evm",
       {
         chain: "ethereum",
         uid,
         token_in: "native",
         token_out: ETHEREUM_USDC,
         amount_in_wei: "1",
-        amount_out_min_wei: "0",
-        fee: 3000,
-      },
-      (parsed) => {
-        assert.equal(String(parsed.chain ?? "").toLowerCase(), "ethereum");
-        assert.equal(String(parsed.token_in ?? "").toLowerCase(), "native");
-        assert.equal(String(parsed.token_out ?? "").toLowerCase(), ETHEREUM_USDC.toLowerCase());
-        assert.ok(parsed.swap_submitted_id || parsed.swap_tx_hash, "swap success should include submission id or tx hash");
-      },
-    );
-  });
-
-  await runStep("uniswap v2 swap smoke", async () => {
-    const { data: st, response: rs } = await client.GET("/api/v1/wallet/status", {});
-    assert.equal(rs.status, 200);
-    const uid = String(st?.uid ?? "").trim();
-    assert.ok(uid, "uid required");
-
-    await assertSwapSmoke(
-      client,
-      "/api/v1/tx/swap/uniswap_v2",
-      {
-        chain: "ethereum",
-        uid,
-        token_in: "native",
-        token_out: ETHEREUM_USDC,
-        amount_in_wei: "1",
-        amount_out_min_wei: "0",
       },
       (parsed) => {
         assert.equal(String(parsed.chain ?? "").toLowerCase(), "ethereum");
@@ -1769,7 +1752,7 @@ async function main() {
 
     await assertSwapSmoke(
       client,
-      "/api/v1/tx/swap/solana-jup",
+      "/api/v1/tx/swap/solana",
       {
         chain: "solana",
         uid,
@@ -1794,7 +1777,7 @@ async function main() {
 
     await assertSwapSmoke(
       client,
-      "/api/v1/tx/swap/sui-cetus",
+      "/api/v1/tx/swap/sui",
       {
         chain: "sui",
         uid,

@@ -1,11 +1,29 @@
 import type { SignatureWithBytes } from "@mysten/sui/cryptography";
 
-import { bytesToHex, hexToBytes, toBase64 } from "./encoding.js";
-import { ClawSandboxClient, type ClawSignerConfig } from "./sandbox.js";
+import { bytesToHex, hexToBytes, toBase64 } from "../util/encoding.js";
+import { ClawSDKError } from "../errors.js";
+import { ClawSandboxClient, type ClawSignerConfig } from "../sandbox.js";
+import { type ClawInvokeResult } from "../util/operation-utils.js";
+import {
+  invokeSui,
+  swapSui,
+  type ClawSuiInvokeRequest,
+  type ClawSuiSwapRequest,
+  type ClawSuiSwapResponse,
+} from "./sui-ecology.js";
+export type {
+  ClawSuiInvokeRequest,
+  ClawSuiSwapRequest,
+  ClawSuiSwapResponse,
+  ClawSuiTxResponse,
+} from "./sui-ecology.js";
 
 function toSerializedSuiSignature(rawSignatureHex: string, publicKeyHex?: string): string {
   if (!publicKeyHex) {
-    throw new Error("Claw Sandbox did not return the Sui public key needed to serialize the signature");
+    throw new ClawSDKError("Claw Sandbox did not return the Sui public key needed to serialize the signature", {
+      code: "CLAW_SIGNATURE_MISSING",
+      field: "from",
+    });
   }
 
   const signature = hexToBytes(rawSignatureHex);
@@ -46,7 +64,9 @@ export class ClawSuiSigner {
     });
 
     if (!res.signature_hex) {
-      throw new Error("Claw Sandbox did not return a signature");
+      throw new ClawSDKError("Claw Sandbox did not return a signature", {
+        code: "CLAW_SIGNATURE_MISSING",
+      });
     }
 
     return {
@@ -65,12 +85,22 @@ export class ClawSuiSigner {
     });
 
     if (!res.signature_hex) {
-      throw new Error("Claw Sandbox did not return a signature");
+      throw new ClawSDKError("Claw Sandbox did not return a signature", {
+        code: "CLAW_SIGNATURE_MISSING",
+      });
     }
 
     return {
       bytes: toBase64(bytes),
       signature: toSerializedSuiSignature(res.signature_hex, res.from),
     };
+  }
+
+  async invoke(request: ClawSuiInvokeRequest): Promise<ClawInvokeResult> {
+    return await invokeSui(this.client, request);
+  }
+
+  async swap(request: ClawSuiSwapRequest): Promise<ClawSuiSwapResponse> {
+    return await swapSui(this.client, request);
   }
 }

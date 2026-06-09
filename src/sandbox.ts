@@ -1,7 +1,10 @@
 import type { components } from "./generated/paths.js";
 import { createClawWalletClient, type ClawWalletClientOptions } from "./client.js";
+import { ClawSDKError, createHttpError, createSandboxError } from "./errors.js";
+import { requireNonEmpty, requireUrl } from "./util/validation.js";
 
 export type ClawSignRequest = components["schemas"]["SignRequest"];
+export type ClawSignRequestInput = Omit<ClawSignRequest, "uid"> & { uid?: string };
 export type ClawSignResult = components["schemas"]["SignResult"];
 export type ClawWalletStatus = components["schemas"]["WalletStatusResponse"];
 export type ClawWalletInitRequest = components["schemas"]["WalletInitRequest"];
@@ -23,20 +26,12 @@ export type ClawPolicyAddressNote = {
   note?: string;
   chain?: string;
 };
-export type ClawPolicyUpdatePatch = {
-  max_amount_per_tx_usd?: number;
-  daily_limit_usd?: number;
-  daily_max_tx_count?: number;
-  whitelist_to?: ClawPolicyAddressNote[];
-  blacklist_to?: ClawPolicyAddressNote[];
-  unpriced_asset_policy?: string;
-  allow_blind_sign?: boolean;
-  strict_plain_text?: boolean;
-};
+export type ClawPolicyUpdatePatch = components["schemas"]["LocalPolicyUpdateRequest"];
 
 const EVM_ADDRESS_FALLBACK_CHAINS = new Set([
   "ethereum",
   "0g",
+  "kite",
   "base",
   "bsc",
   "arbitrum",
@@ -46,29 +41,19 @@ const EVM_ADDRESS_FALLBACK_CHAINS = new Set([
   "linea",
   "zksync",
   "monad",
-  "kite",
   "tempo",
 ]);
 
 export type ClawSignerConfig = {
-  uid: string;
+  uid?: string;
   sandboxUrl: string;
   sandboxToken: string;
   chain?: string;
   fetch?: ClawWalletClientOptions["fetch"];
 };
 
-function errorText(error: unknown, response: Response): string {
-  if (typeof error === "string" && error) return error;
-  return response.statusText || "Unknown error";
-}
-
-async function readJsonError(response: Response): Promise<string> {
-  try {
-    return (await response.text()) || response.statusText || "Unknown error";
-  } catch {
-    return response.statusText || "Unknown error";
-  }
+function normalizeSandboxUrl(url: string): string {
+  return requireUrl(url, "sandboxUrl", "ClawSandboxClient");
 }
 
 export class ClawSandboxClient {
@@ -77,11 +62,12 @@ export class ClawSandboxClient {
   constructor(config: ClawSignerConfig) {
     this.config = {
       ...config,
-      sandboxUrl: config.sandboxUrl.replace(/\/+$/, ""),
+      sandboxUrl: normalizeSandboxUrl(config.sandboxUrl),
+      sandboxToken: config.sandboxToken ?? "",
     };
   }
 
-  private get client() {
+  get client() {
     return createClawWalletClient({
       baseUrl: this.config.sandboxUrl,
       agentToken: this.config.sandboxToken,
@@ -89,16 +75,31 @@ export class ClawSandboxClient {
     });
   }
 
-  async sign(request: Omit<ClawSignRequest, "uid">): Promise<ClawSignResult> {
+  async requestExternalJson<T>(url: string): Promise<T> {
+    const response = await (this.config.fetch ?? fetch)(url, {
+      method: "GET",
+      headers: { Accept: "application/json" },
+    });
+    if (!response.ok) {
+      throw await createHttpError("Claw external request failed", response, { method: "GET", path: url });
+    }
+    return await response.json() as T;
+  }
+
+  async sign(request: ClawSignRequestInput): Promise<ClawSignResult> {
+    const body = {
+      ...request,
+      ...(request.uid === undefined && this.config.uid ? { uid: this.config.uid } : {}),
+    };
     const { data, error, response } = await this.client.POST("/api/v1/tx/sign", {
-      body: {
-        ...request,
-        uid: this.config.uid,
-      },
+      body: body as ClawSignRequest,
     });
 
     if (!response.ok || !data) {
-      throw new Error(`Claw Sandbox Error (${response.status}): ${errorText(error, response)}`);
+      throw createSandboxError("Failed to sign transaction", response, error, {
+        method: "POST",
+        path: "/api/v1/tx/sign",
+      });
     }
 
     return data;
@@ -107,7 +108,10 @@ export class ClawSandboxClient {
   async getStatus(): Promise<ClawWalletStatus> {
     const { data, error, response } = await this.client.GET("/api/v1/wallet/status", {});
     if (!response.ok || !data) {
-      throw new Error(`Failed to get status (${response.status}): ${errorText(error, response)}`);
+      throw createSandboxError("Failed to get status", response, error, {
+        method: "GET",
+        path: "/api/v1/wallet/status",
+      });
     }
     return data;
   }
@@ -117,7 +121,10 @@ export class ClawSandboxClient {
       body: request,
     });
     if (!response.ok || !data) {
-      throw new Error(`Failed to init wallet (${response.status}): ${errorText(error, response)}`);
+      throw createSandboxError("Failed to init wallet", response, error, {
+        method: "POST",
+        path: "/api/v1/wallet/init",
+      });
     }
     return data;
   }
@@ -125,7 +132,10 @@ export class ClawSandboxClient {
   async refreshWallet(): Promise<ClawStatusMessage> {
     const { data, error, response } = await this.client.POST("/api/v1/wallet/refresh", {});
     if (!response.ok || !data) {
-      throw new Error(`Failed to trigger wallet refresh (${response.status}): ${errorText(error, response)}`);
+      throw createSandboxError("Failed to trigger wallet refresh", response, error, {
+        method: "POST",
+        path: "/api/v1/wallet/refresh",
+      });
     }
     return data;
   }
@@ -133,19 +143,26 @@ export class ClawSandboxClient {
   async refreshAndGetAssets(): Promise<ClawAssetSnapshot> {
     const { data, error, response } = await this.client.GET("/api/v1/wallet/refreshAndAssets", {});
     if (!response.ok || !data) {
-      throw new Error(`Failed to refresh and get assets (${response.status}): ${errorText(error, response)}`);
+      throw createSandboxError("Failed to refresh and get assets", response, error, {
+        method: "GET",
+        path: "/api/v1/wallet/refreshAndAssets",
+      });
     }
     return data;
   }
 
   async refreshChain(chain: string): Promise<Record<string, unknown>> {
+    const normalizedChain = requireNonEmpty(chain, "chain", "refreshChain");
     const { data, error, response } = await this.client.POST("/api/v1/wallet/refresh/chain", {
       body: {
-        chain,
+        chain: normalizedChain,
       },
     });
     if (!response.ok || !data) {
-      throw new Error(`Failed to refresh chain (${response.status}): ${errorText(error, response)}`);
+      throw createSandboxError("Failed to refresh chain", response, error, {
+        method: "POST",
+        path: "/api/v1/wallet/refresh/chain",
+      });
     }
     return data as Record<string, unknown>;
   }
@@ -155,7 +172,10 @@ export class ClawSandboxClient {
       body: request,
     });
     if (!response.ok || !data) {
-      throw new Error(`Failed to unlock wallet (${response.status}): ${errorText(error, response)}`);
+      throw createSandboxError("Failed to unlock wallet", response, error, {
+        method: "POST",
+        path: "/api/v1/wallet/unlock",
+      });
     }
     return data;
   }
@@ -163,7 +183,10 @@ export class ClawSandboxClient {
   async reactivateWallet(): Promise<ClawWalletStatus> {
     const { data, error, response } = await this.client.POST("/api/v1/wallet/reactivate", {});
     if (!response.ok || !data) {
-      throw new Error(`Failed to reactivate wallet (${response.status}): ${errorText(error, response)}`);
+      throw createSandboxError("Failed to reactivate wallet", response, error, {
+        method: "POST",
+        path: "/api/v1/wallet/reactivate",
+      });
     }
     return data;
   }
@@ -171,7 +194,10 @@ export class ClawSandboxClient {
   async wipeWallet(): Promise<ClawStatusMessage> {
     const { data, error, response } = await this.client.POST("/wipe", {});
     if (!response.ok || !data) {
-      throw new Error(`Failed to wipe wallet (${response.status}): ${errorText(error, response)}`);
+      throw createSandboxError("Failed to wipe wallet", response, error, {
+        method: "POST",
+        path: "/wipe",
+      });
     }
     return data;
   }
@@ -179,7 +205,10 @@ export class ClawSandboxClient {
   async getAssets(): Promise<ClawAssetSnapshot> {
     const { data, error, response } = await this.client.GET("/api/v1/wallet/assets", {});
     if (!response.ok || !data) {
-      throw new Error(`Failed to get assets (${response.status}): ${errorText(error, response)}`);
+      throw createSandboxError("Failed to get assets", response, error, {
+        method: "GET",
+        path: "/api/v1/wallet/assets",
+      });
     }
     return data;
   }
@@ -189,7 +218,10 @@ export class ClawSandboxClient {
       params: { query },
     });
     if (!response.ok) {
-      throw new Error(`Failed to get history (${response.status}): ${errorText(error, response)}`);
+      throw createSandboxError("Failed to get history", response, error, {
+        method: "GET",
+        path: "/api/v1/wallet/history",
+      });
     }
     return Array.isArray(data) ? data : [];
   }
@@ -197,50 +229,49 @@ export class ClawSandboxClient {
   async getLocalPolicy(): Promise<ClawPolicy> {
     const { data, error, response } = await this.client.GET("/api/v1/policy/local", {});
     if (!response.ok || !data) {
-      throw new Error(`Failed to get local policy (${response.status}): ${errorText(error, response)}`);
+      throw createSandboxError("Failed to get local policy", response, error, {
+        method: "GET",
+        path: "/api/v1/policy/local",
+      });
     }
     return data;
   }
 
   async updateLocalPolicy(patch: ClawPolicyUpdatePatch): Promise<ClawPolicy> {
-    const url = `${this.config.sandboxUrl}/api/v1/policy/update`;
-    const headers = new Headers({
-      Accept: "application/json",
-      "Content-Type": "application/json",
+    const { data, error, response } = await this.client.POST("/api/v1/policy/update", {
+      body: patch,
     });
-    const token = this.config.sandboxToken.trim();
-    if (token) {
-      headers.set("Authorization", `Bearer ${token}`);
+    if (!response.ok || !data) {
+      throw createSandboxError("Failed to update local policy", response, error, {
+        method: "POST",
+        path: "/api/v1/policy/update",
+      });
     }
-
-    const response = await (this.config.fetch ?? fetch)(url, {
-      method: "POST",
-      headers,
-      body: JSON.stringify(patch),
-    });
-    if (!response.ok) {
-      throw new Error(
-        `Failed to update local policy (${response.status}): ${await readJsonError(response)}`,
-      );
+    if (data.status !== "policy_updated") {
+      throw new ClawSDKError("Unexpected policy update response", {
+        code: "CLAW_UNEXPECTED_RESPONSE",
+        method: "POST",
+        path: "/api/v1/policy/update",
+        details: data,
+      });
     }
-
-    const parsed = (await response.json()) as Record<string, unknown>;
-    if (parsed?.status !== "policy_updated") {
-      throw new Error(`Unexpected policy update response: ${JSON.stringify(parsed)}`);
-    }
-    return (parsed.policy ?? parsed) as ClawPolicy;
+    return data.policy;
   }
 
   async getRequiredAddress(chain: string): Promise<string> {
     const status = await this.getStatus();
-    const normalized = chain.trim().toLowerCase();
+    const normalized = requireNonEmpty(chain, "chain", "getRequiredAddress").trim().toLowerCase();
     const address =
       status.addresses?.[normalized] ??
       (EVM_ADDRESS_FALLBACK_CHAINS.has(normalized)
         ? status.addresses?.ethereum ?? status.address
         : undefined);
     if (!address) {
-      throw new Error(`Claw Sandbox status did not include a ${chain} address`);
+      throw new ClawSDKError(`Claw Sandbox status did not include a ${chain} address`, {
+        code: "CLAW_ADDRESS_NOT_FOUND",
+        field: "chain",
+        details: status.addresses,
+      });
     }
     return address;
   }
@@ -250,7 +281,10 @@ export class ClawSandboxClient {
       body: request,
     });
     if (!response.ok || !data) {
-      throw new Error(`Failed to bind wallet (${response.status}): ${errorText(error, response)}`);
+      throw createSandboxError("Failed to bind wallet", response, error, {
+        method: "POST",
+        path: "/api/v1/wallet/bind",
+      });
     }
     return data;
   }
@@ -260,17 +294,33 @@ export class ClawSandboxClient {
       body: request,
     });
     if (!response.ok || !data) {
-      throw new Error(`Failed to broadcast transaction (${response.status}): ${errorText(error, response)}`);
+      throw createSandboxError("Failed to broadcast transaction", response, error, {
+        method: "POST",
+        path: "/api/v1/tx/broadcast",
+      });
     }
     return data;
   }
 
+  async broadcastTransaction(request: ClawBroadcastRequest): Promise<ClawBroadcastResponse> {
+    return this.broadcast(request);
+  }
+
   async transfer(request: ClawTransferRequest): Promise<ClawTransferResult> {
+    const body = {
+      ...request,
+      chain: requireNonEmpty(request.chain, "chain", "transfer"),
+      to: requireNonEmpty(request.to, "to", "transfer"),
+      amount_wei: requireNonEmpty(request.amount_wei, "amount_wei", "transfer"),
+    };
     const { data, error, response } = await this.client.POST("/api/v1/tx/transfer", {
-      body: request,
+      body,
     });
     if (!response.ok || !data) {
-      throw new Error(`Failed to submit transfer (${response.status}): ${errorText(error, response)}`);
+      throw createSandboxError("Failed to submit transfer", response, error, {
+        method: "POST",
+        path: "/api/v1/tx/transfer",
+      });
     }
     return data;
   }

@@ -20,7 +20,17 @@ import {
   clawChainToChainId,
   resolveClawEvmChain,
 } from "./evm-chain.js";
-import { ClawSandboxClient, type ClawSignerConfig } from "./sandbox.js";
+import { ClawSDKError, ClawValidationError } from "../errors.js";
+import { ClawSandboxClient, type ClawSignerConfig } from "../sandbox.js";
+import { type ClawInvokeResult } from "../util/operation-utils.js";
+import {
+  invokeEvm,
+  swapEvm,
+  type ClawEvmInvokeRequest,
+  type ClawEvmSwapRequest,
+  type ClawEvmSwapResponse,
+} from "./evm-ecology.js";
+export type { ClawEvmInvokeRequest, ClawEvmSwapRequest, ClawEvmSwapResponse } from "./evm-ecology.js";
 
 function normalizeBaseUrl(url: string): string {
   return url.trim().replace(/\/+$/, "");
@@ -116,7 +126,11 @@ export class ClawEthersSigner extends AbstractSigner {
       status.address ??
       "";
     if (!this.address) {
-      throw new Error(`Claw Sandbox status did not include a ${preferredChain} address`);
+      throw new ClawSDKError(`Claw Sandbox status did not include a ${preferredChain} address`, {
+        code: "CLAW_ADDRESS_NOT_FOUND",
+        field: "chain",
+        details: status.addresses,
+      });
     }
     return this.address;
   }
@@ -142,7 +156,7 @@ export class ClawEthersSigner extends AbstractSigner {
   ): Promise<string> {
     const primaryType = inferPrimaryType(types);
     if (!primaryType) {
-      throw new Error("Typed data types must include a primary type");
+      throw new ClawValidationError("Typed data types must include a primary type", { field: "types" });
     }
 
     const res = await this.client.sign({
@@ -175,8 +189,9 @@ export class ClawEthersSigner extends AbstractSigner {
       }
     }
 
-    throw new Error(
+    throw new ClawValidationError(
       "ClawEthersSigner requires transaction.chainId, a known config.chain, or a connected provider network",
+      { field: "chainId" },
     );
   }
 
@@ -188,7 +203,7 @@ export class ClawEthersSigner extends AbstractSigner {
     if (normalizedFrom) {
       const signerAddress = await this.getAddress();
       if (signerAddress.toLowerCase() !== normalizedFrom.toLowerCase()) {
-        throw new Error(`transaction from mismatch: ${normalizedFrom}`);
+        throw new ClawValidationError(`transaction from mismatch: ${normalizedFrom}`, { field: "from" });
       }
     }
 
@@ -211,7 +226,9 @@ export class ClawEthersSigner extends AbstractSigner {
     });
 
     if (!res.signature_hex) {
-      throw new Error("Claw Sandbox did not return a signature");
+      throw new ClawSDKError("Claw Sandbox did not return a signature", {
+        code: "CLAW_SIGNATURE_MISSING",
+      });
     }
 
     unsigned.signature = Signature.from(res.signature_hex);
@@ -220,11 +237,21 @@ export class ClawEthersSigner extends AbstractSigner {
 
   async sendTransaction(transaction: TransactionRequest): Promise<TransactionResponse> {
     if (!this.provider) {
-      throw new Error("ClawEthersSigner requires a provider to send transactions");
+      throw new ClawValidationError("ClawEthersSigner requires a provider to send transactions", {
+        field: "provider",
+      });
     }
     const populated = await this.populateTransaction(transaction);
     delete populated.from;
     const signedRawTx = await this.signTransaction(populated);
     return await this.provider.broadcastTransaction(signedRawTx);
+  }
+
+  async invoke(request: ClawEvmInvokeRequest): Promise<ClawInvokeResult> {
+    return await invokeEvm(this.client, request);
+  }
+
+  async swap(request: ClawEvmSwapRequest): Promise<ClawEvmSwapResponse> {
+    return await swapEvm(this.client, request);
   }
 }

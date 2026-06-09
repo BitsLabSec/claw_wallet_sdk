@@ -53,6 +53,13 @@ function assertMonadAddressPresent(status) {
   assert.equal(monad, ethereum, "wallet/status should expose monad address matching ethereum");
 }
 
+function assertKiteAddressPresent(status) {
+  const ethereum = evmAddressForChain(status, "ethereum").toLowerCase();
+  const kite = evmAddressForChain(status, "kite").toLowerCase();
+  assert.ok(ethereum.startsWith("0x"), "wallet/status missing ethereum address");
+  assert.equal(kite, ethereum, "wallet/status should expose kite address matching ethereum");
+}
+
 function snapshotKeyForChain(status, chain) {
   const address = evmAddressForChain(status, chain);
   if (!address) {
@@ -168,6 +175,7 @@ assert.equal(response.status, 200, "wallet/status required");
 const statusUid = String(data?.uid ?? "").trim();
 assert.ok(statusUid, "wallet/status did not include uid");
 assertMonadAddressPresent(data);
+assertKiteAddressPresent(data);
 const envUid = String(process.env.CLAY_UID?.trim() || "").trim();
 if (envUid && envUid !== statusUid) {
   throw new Error(`CLAY_UID mismatch: env=${envUid} status=${statusUid}`);
@@ -207,8 +215,10 @@ if (ENABLE_SLOW_READS) {
 
   await assertSlowChainRefreshBehavior(sandbox, st, "0g");
   await assertSlowChainRefreshBehavior(sandbox, st, "monad");
+  await assertSlowChainRefreshBehavior(sandbox, st, "kite");
   await benchmarkBlockingChainRefresh(blockingSandbox, "0g");
   await benchmarkBlockingChainRefresh(blockingSandbox, "monad");
+  await benchmarkBlockingChainRefresh(blockingSandbox, "kite");
 }
 
 const kiteHistory = await sandbox.getHistory({ chain: "kite", limit: 5 });
@@ -238,6 +248,7 @@ const requiredNativePriceKeys = [
   "native:sui",
   "native:bitcoin",
   "native:monad",
+  "native:kite",
 ];
 const priceMap = price.data?.prices;
 if (priceMap && typeof priceMap === "object") {

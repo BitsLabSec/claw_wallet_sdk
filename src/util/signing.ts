@@ -2,7 +2,7 @@ import { utf8ToPayloadHex } from "./encoding.js";
 
 export type PersonalSignRequestInput = {
   chain: string;
-  uid: string;
+  uid?: string;
   /** Human-readable text; must pass Sandbox strict plain-text rules when enabled. */
   message: string;
   confirmed_by_user?: boolean;
@@ -13,7 +13,7 @@ export function buildPersonalSignBody(input: PersonalSignRequestInput) {
   return {
     chain: input.chain,
     sign_mode: "personal_sign" as const,
-    uid: input.uid,
+    ...(input.uid ? { uid: input.uid } : {}),
     tx_payload_hex: utf8ToPayloadHex(input.message),
     amount_wei: "0",
     data: "0x",

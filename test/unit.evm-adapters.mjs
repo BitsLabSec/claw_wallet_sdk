@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 
 import { Transaction } from "ethers";
 
-import { ClawEthersSigner } from "../dist/ethers.js";
+import { ClawEthersSigner } from "../dist/evm/ethers.js";
 
 const SIGNATURE_HEX =
   "0x"
@@ -117,6 +117,40 @@ function installSandboxSignStub(expectedChain) {
     const parsed = Transaction.from(broadcastRawTx);
     assert.equal(parsed.chainId, 56n);
     assert.equal(parsed.to?.toLowerCase(), "0x00000000000000000000000000000000000000aa");
+  } finally {
+    stub.restore();
+  }
+}
+
+{
+  const stub = installSandboxSignStub("kite");
+  try {
+    const signer = new ClawEthersSigner(
+      {
+        uid: "u1",
+        sandboxUrl: "https://sandbox.example",
+        sandboxToken: "token",
+        chain: "kite",
+      },
+      null,
+      "0x0000000000000000000000000000000000000001",
+    );
+
+    const signed = await signer.signTransaction({
+      nonce: 9,
+      gasLimit: 21_000n,
+      gasPrice: 1_000_000_000n,
+      to: "0x00000000000000000000000000000000000000AA",
+      value: 99n,
+      data: "0x",
+      type: 0,
+    });
+
+    const parsed = Transaction.from(signed);
+    assert.equal(parsed.chainId, 2366n);
+    assert.equal(parsed.to?.toLowerCase(), "0x00000000000000000000000000000000000000aa");
+    assert.equal(stub.calls.length, 1);
+    assert.equal(stub.calls[0].chain, "kite");
   } finally {
     stub.restore();
   }

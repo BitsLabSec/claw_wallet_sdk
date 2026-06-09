@@ -4,7 +4,7 @@
  */
 import assert from "node:assert/strict";
 
-import { buildPersonalSignBody } from "../dist/signing.js";
+import { buildPersonalSignBody } from "../dist/util/signing.js";
 
 const body = buildPersonalSignBody({
   chain: "ethereum",
@@ -21,10 +21,10 @@ assert.equal(body.confirmed_by_user, true);
 
 const bodyFalse = buildPersonalSignBody({
   chain: "base",
-  uid: "x",
   message: "m",
   confirmed_by_user: false,
 });
 assert.equal(bodyFalse.confirmed_by_user, false);
+assert.equal("uid" in bodyFalse, false);
 
 process.stdout.write("unit signing passed\n");
