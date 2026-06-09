@@ -51,6 +51,7 @@ function installStatusStub(statusBody) {
     address: "0x00000000000000000000000000000000000000aa",
     addresses: {
       ethereum: "0x00000000000000000000000000000000000000aa",
+      tron: "TRw9F9c1D66aD2AiRH9KrzGM4QXAEpDKXV",
     },
   });
 
@@ -69,9 +70,9 @@ function installStatusStub(statusBody) {
       await sandbox.getRequiredAddress("tempo"),
       "0x00000000000000000000000000000000000000aa",
     );
-    await assert.rejects(
-      () => sandbox.getRequiredAddress("tron"),
-      /did not include a tron address/i,
+    assert.equal(
+      await sandbox.getRequiredAddress("tron"),
+      "TRw9F9c1D66aD2AiRH9KrzGM4QXAEpDKXV",
     );
   } finally {
     stub.restore();

@@ -191,10 +191,10 @@ const st = await sandbox.getStatus();
 assert.ok(st && (typeof st.status === "string" || st.gateway_status));
 assert.ok(st && typeof st.asset_refresh_state === "object");
 assertMonadAddressPresent(st);
-assert.equal(
+assert.match(
   String(st?.addresses?.tron ?? "").trim(),
-  "",
-  "wallet/status should omit tron while support is disabled",
+  /^T/,
+  "wallet/status should include a tron address",
 );
 
 if (ENABLE_SLOW_READS) {

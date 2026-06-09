@@ -379,9 +379,9 @@ async function assertRefreshChainForChain(sandbox, chainKey) {
   assert.equal(String(result?.chain ?? "").trim().toLowerCase(), chainKey, `${chainKey} refreshChain response mismatch`);
 }
 
-async function assertTronDisabled(client, status, uid) {
+async function assertTronEnabled(client, status, uid) {
   const tronAddress = String(status?.addresses?.tron ?? "").trim();
-  assert.equal(tronAddress, "", "wallet/status should omit tron when support is disabled");
+  assert.match(tronAddress, /^T/, "wallet/status should include a tron address");
   const { data, error, response } = await client.POST("/api/v1/tx/transfer", {
     body: {
       chain: "tron",
@@ -399,9 +399,9 @@ async function assertTronDisabled(client, status, uid) {
         ? error
         : "";
 
-  assert.equal(response.status, 400, `tron transfer should be disabled, got ${response.status}: ${transferRaw}`);
-  const text = transferRaw.slice(0, 800);
-  assert.match(text, /disabled/i, `expected tron disabled error, got: ${text}`);
+  assert.notEqual(response.status, 400, `tron transfer should not fail at disabled gate: ${transferRaw}`);
+  const text = transferRaw.slice(0, 800).toLowerCase();
+  assert.ok(!text.includes("disabled"), `expected tron transfer path to be enabled, got: ${transferRaw.slice(0, 800)}`);
 }
 
 async function assertProviderInferredEvmTransactionSignForChain(status, uid, chainKey) {
@@ -1937,8 +1937,8 @@ async function main() {
     await assertRefreshChainForChain(sandbox, "tempo");
   });
 
-  await runStep("tron disabled by default", async () => {
-    await assertTronDisabled(client, currentStatus, uid);
+  await runStep("tron public path enabled", async () => {
+    await assertTronEnabled(client, currentStatus, uid);
   });
 
   process.stdout.write("integration smoke passed\n");
